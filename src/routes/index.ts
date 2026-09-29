@@ -1,4 +1,5 @@
 import { Router } from "express";
+import blogRoutes from "../modules/blog/blog.route";
 import healthRoutes from "../modules/health/health.route";
 
 const router = Router();
@@ -10,6 +11,10 @@ const moduleRoutes: {
   {
     path: "/health",
     route: healthRoutes,
+  },
+  {
+    path: "/blog",
+    route: blogRoutes,
   },
 ];
 
