@@ -54,7 +54,7 @@ const getAllServices = async (query: TPaginationOptions) => {
   const { page, limit, skip } = calculatePagination(query);
 
   const services = await Service.find({})
-    //todo: implement later .populate("projects")
+    .populate("projects")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -82,7 +82,7 @@ const getPublishedServices = async (query: TPaginationOptions) => {
   };
 
   const services = await Service.find(filter)
-    //todo: to implement this after projects feature development .populate("projects")
+    .populate("projects")
     .sort({ publishedAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -107,7 +107,7 @@ const getFeaturedServices = async () => {
     status: SERVICE_STATUS.PUBLISHED,
     isFeatured: true,
   })
-    //todo: to implement this after projects feature development .populate("projects")
+    .populate("projects")
     .sort({ publishedAt: -1 });
 
   return services;
@@ -128,9 +128,7 @@ const getPublishedServiceBySlug = async (slug: string) => {
   const result = await Service.findOne({
     slug,
     status: SERVICE_STATUS.PUBLISHED,
-  });
-
-  //todo: to implement this after projects feature development .populate("projects")
+  }).populate("projects");
 
   if (!result) {
     throw new AppError(
@@ -196,9 +194,7 @@ const updateService = async (
   const result = await Service.findByIdAndUpdate(serviceId, payload, {
     new: true,
     runValidators: true,
-  });
-
-  //todo: .populate("projects"), to implement this after projects feature
+  }).populate("projects");
 
   return result;
 };
