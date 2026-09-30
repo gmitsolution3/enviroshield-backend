@@ -19,7 +19,6 @@
     }
   },
   "packageManager": "pnpm@12.6.0",
-  "type": "module",
   "dependencies": {
     "better-auth": "^1.7.6",
     "cors": "^2.8.6",
