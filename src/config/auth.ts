@@ -2,8 +2,7 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { admin, bearer } from "better-auth/plugins";
 import { connectMongoDB } from "./mongodb";
-
-const client = await connectMongoDB();
+import { client } from "./mongodb"; 
 
 const db = client.db(process.env.MONGODB_DB);
 
