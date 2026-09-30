@@ -1,4 +1,4 @@
-/// <reference path="../../types/express.d.ts" />
+/// <reference path="./types/express.d.ts" />
 
 import cors from "cors";
 import express from "express";
