@@ -17,6 +17,13 @@ export type TBlogSEO = {
   noIndex?: boolean;
 };
 
+export type TBlogAuthor = {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+};
+
 export type TBlog = {
   title: string;
   slug: string;
@@ -33,4 +40,8 @@ export type TBlog = {
   publishedAt?: Date | null;
 
   seo?: TBlogSEO;
+};
+
+export type TBlogWithAuthor = TBlog & {
+  author: TBlogAuthor | null;
 };

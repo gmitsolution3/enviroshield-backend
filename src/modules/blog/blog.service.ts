@@ -1,10 +1,51 @@
 import httpStatus from "http-status";
+import { ObjectId } from "mongodb";
+import { client } from "../../config/mongodb";
 import { TPaginationOptions } from "../../types/common";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
 import { BLOG_STATUS } from "./blog.constant";
 import Blog from "./blog.model";
 import { TBlog } from "./blog.types";
+
+const getAuthorDetails = async (authorId: string) => {
+  const db = client.db(process.env.MONGODB_DB);
+
+  const user = await db.collection("user").findOne(
+    {
+      _id: new ObjectId(authorId),
+    },
+    {
+      projection: {
+        _id: 0,
+        id: 1,
+        name: 1,
+        email: 1,
+        image: 1,
+      },
+    },
+  );
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image ?? null,
+  };
+};
+
+const attachAuthor = async (blog: any) => {
+  const blogObject = blog.toObject();
+
+  return {
+    ...blogObject,
+    author: await getAuthorDetails(blogObject.authorId),
+  };
+};
 
 const createBlog = async (payload: TBlog) => {
   const existingBlog = await Blog.findOne({
@@ -28,7 +69,7 @@ const createBlog = async (payload: TBlog) => {
 
   const result = await Blog.create(payload);
 
-  return result;
+  return attachAuthor(result);
 };
 
 const getAllBlogs = async (query: TPaginationOptions) => {
@@ -45,6 +86,10 @@ const getAllBlogs = async (query: TPaginationOptions) => {
 
   const totalPages = Math.ceil(total / limit);
 
+  const data = await Promise.all(
+    blogs.map((blog) => attachAuthor(blog)),
+  );
+
   return {
     meta: {
       page,
@@ -52,7 +97,7 @@ const getAllBlogs = async (query: TPaginationOptions) => {
       total,
       totalPages,
     },
-    data: blogs,
+    data,
   };
 };
 
@@ -72,6 +117,10 @@ const getPublishedBlogs = async (query: TPaginationOptions) => {
 
   const totalPages = Math.ceil(total / limit);
 
+  const data = await Promise.all(
+    blogs.map((blog) => attachAuthor(blog)),
+  );
+
   return {
     meta: {
       page,
@@ -79,7 +128,7 @@ const getPublishedBlogs = async (query: TPaginationOptions) => {
       total,
       totalPages,
     },
-    data: blogs,
+    data,
   };
 };
 
@@ -90,7 +139,7 @@ const getBlogById = async (blogId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, "Blog not found");
   }
 
-  return result;
+  return attachAuthor(result);
 };
 
 const getPublishedBlogBySlug = async (slug: string) => {
@@ -106,7 +155,7 @@ const getPublishedBlogBySlug = async (slug: string) => {
     );
   }
 
-  return result;
+  return attachAuthor(result);
 };
 
 const updateBlog = async (
@@ -151,7 +200,11 @@ const updateBlog = async (
     runValidators: true,
   });
 
-  return result;
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, "Blog not found");
+  }
+
+  return attachAuthor(result);
 };
 
 const deleteBlog = async (blogId: string) => {
