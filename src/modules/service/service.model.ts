@@ -79,10 +79,6 @@ const serviceSEOSchema = new Schema<TServiceSEO>(
       type: [String],
       default: [],
     },
-    canonicalUrl: {
-      type: String,
-      trim: true,
-    },
     ogTitle: {
       type: String,
       trim: true,
