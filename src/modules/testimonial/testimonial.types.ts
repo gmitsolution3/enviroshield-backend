@@ -2,6 +2,7 @@ export type TTestimonialStatus = "draft" | "published";
 
 export type TTestimonialImage = {
   url: string;
+  publicId: string;
   alt: string;
 };
 

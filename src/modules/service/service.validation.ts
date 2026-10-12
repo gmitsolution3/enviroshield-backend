@@ -3,6 +3,7 @@ import { SERVICE_STATUS } from "./service.constant";
 
 const serviceImageSchema = z.object({
   url: z.string().min(1, "Image URL is required"),
+  publicId: z.string().min(1, "Cloudinary public ID is required"),
   alt: z.string().min(1, "Image alt text is required"),
   caption: z.string().optional(),
 });
@@ -26,6 +27,7 @@ const serviceSEOSchema = z.object({
   ogTitle: z.string().optional(),
   ogDescription: z.string().optional(),
   ogImage: z.string().url().optional(),
+  ogImagePublicId: z.string().optional(),
   noIndex: z.boolean().optional(),
 });
 

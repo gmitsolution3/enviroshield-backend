@@ -9,6 +9,13 @@ const testimonialImageSchema = new Schema<TTestimonialImage>(
       required: true,
       trim: true,
     },
+
+    publicId: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
     alt: {
       type: String,
       required: true,

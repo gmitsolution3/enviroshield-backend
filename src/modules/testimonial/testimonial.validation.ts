@@ -3,6 +3,7 @@ import { TESTIMONIAL_STATUS } from "./testimonial.constant";
 
 const testimonialImageSchema = z.object({
   url: z.string().min(1, "Image URL is required"),
+  publicId: z.string().min(1, "Cloudinary public ID is required"),
   alt: z.string().min(1, "Image alt text is required"),
 });
 

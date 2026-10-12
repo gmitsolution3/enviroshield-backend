@@ -1,3 +1,4 @@
+
 import { Schema, model } from "mongoose";
 import { BLOG_STATUS } from "./blog.constant";
 import { TBlog } from "./blog.types";
@@ -5,6 +6,11 @@ import { TBlog } from "./blog.types";
 const blogImageSchema = new Schema(
   {
     url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    publicId: {
       type: String,
       required: true,
       trim: true,
@@ -47,6 +53,10 @@ const blogSEOSchema = new Schema(
       trim: true,
     },
     ogImage: {
+      type: String,
+      trim: true,
+    },
+    ogImagePublicId: {
       type: String,
       trim: true,
     },
@@ -122,7 +132,7 @@ const blogSchema = new Schema<TBlog>(
   {
     strict: true,
     timestamps: true,
-    versionKey: false
+    versionKey: false,
   },
 );
 

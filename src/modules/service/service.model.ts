@@ -1,3 +1,4 @@
+
 import { model, Schema } from "mongoose";
 import { SERVICE_STATUS } from "./service.constant";
 import {
@@ -11,6 +12,11 @@ import {
 const serviceImageSchema = new Schema<TServiceImage>(
   {
     url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    publicId: {
       type: String,
       required: true,
       trim: true,
@@ -88,6 +94,10 @@ const serviceSEOSchema = new Schema<TServiceSEO>(
       trim: true,
     },
     ogImage: {
+      type: String,
+      trim: true,
+    },
+    ogImagePublicId: {
       type: String,
       trim: true,
     },
@@ -177,9 +187,9 @@ const serviceSchema = new Schema<TService>(
     },
   },
   {
-    strict: true, 
+    strict: true,
     timestamps: true,
-    versionKey: false
+    versionKey: false,
   },
 );
 

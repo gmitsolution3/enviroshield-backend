@@ -1,9 +1,11 @@
+
 import { Types } from "mongoose";
 
 export type TProjectStatus = "draft" | "published";
 
 export type TProjectImage = {
   url: string;
+  publicId: string;
   alt: string;
   caption?: string;
 };
@@ -19,6 +21,7 @@ export type TProjectClient = {
   description?: string;
   logo?: {
     url: string;
+    publicId: string;
     alt: string;
   };
 };
@@ -30,6 +33,7 @@ export type TProjectSEO = {
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
+  ogImagePublicId?: string;
   noIndex?: boolean;
 };
 

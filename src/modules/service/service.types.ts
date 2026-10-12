@@ -1,9 +1,11 @@
+
 import { Types } from "mongoose";
 
 export type TServiceStatus = "draft" | "published";
 
 export type TServiceImage = {
   url: string;
+  publicId: string;
   alt: string;
   caption?: string;
 };
@@ -25,6 +27,7 @@ export type TServiceSEO = {
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
+  ogImagePublicId?: string;
   noIndex?: boolean;
 };
 

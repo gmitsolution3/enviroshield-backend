@@ -1,7 +1,9 @@
+
 export type TBlogStatus = "draft" | "published";
 
 export type TBlogImage = {
   url: string;
+  publicId: string;
   alt: string;
   caption?: string;
 };
@@ -13,6 +15,7 @@ export type TBlogSEO = {
   ogTitle?: string;
   ogDescription?: string;
   ogImage?: string;
+  ogImagePublicId?: string;
   noIndex?: boolean;
 };
 

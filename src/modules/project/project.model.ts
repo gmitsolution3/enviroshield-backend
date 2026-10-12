@@ -1,3 +1,4 @@
+
 import { Schema, model } from "mongoose";
 import { PROJECT_STATUS } from "./project.constant";
 import {
@@ -11,6 +12,11 @@ import {
 const projectImageSchema = new Schema<TProjectImage>(
   {
     url: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    publicId: {
       type: String,
       required: true,
       trim: true,
@@ -95,6 +101,10 @@ const projectSEOSchema = new Schema<TProjectSEO>(
       trim: true,
     },
     ogImage: {
+      type: String,
+      trim: true,
+    },
+    ogImagePublicId: {
       type: String,
       trim: true,
     },
