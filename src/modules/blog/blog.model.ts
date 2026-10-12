@@ -38,10 +38,6 @@ const blogSEOSchema = new Schema(
       type: [String],
       default: [],
     },
-    canonicalUrl: {
-      type: String,
-      trim: true,
-    },
     ogTitle: {
       type: String,
       trim: true,

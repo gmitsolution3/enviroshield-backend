@@ -86,10 +86,6 @@ const projectSEOSchema = new Schema<TProjectSEO>(
       type: [String],
       default: [],
     },
-    canonicalUrl: {
-      type: String,
-      trim: true,
-    },
     ogTitle: {
       type: String,
       trim: true,
