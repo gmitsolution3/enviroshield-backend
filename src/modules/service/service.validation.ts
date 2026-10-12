@@ -23,7 +23,6 @@ const serviceSEOSchema = z.object({
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   keywords: z.array(z.string()).optional(),
-  canonicalUrl: z.string().url().optional(),
   ogTitle: z.string().optional(),
   ogDescription: z.string().optional(),
   ogImage: z.string().url().optional(),
