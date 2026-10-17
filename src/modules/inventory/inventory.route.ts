@@ -27,5 +27,14 @@ router.get(
   inventoryController.getMovementHistory,
 );
 
+router.get(
+  "/low-stock",
+  authenticate,
+  authorize("admin"),
+  validateRequest(
+    inventoryValidation.getLowStockProductsValidationSchema,
+  ),
+  inventoryController.getLowStockProducts,
+);
 
 export default router;

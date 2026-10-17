@@ -44,9 +44,24 @@ const getMovementHistory = catchAsync(
   },
 );
 
+const getLowStockProducts = catchAsync(
+  async (req: AuthenticatedRequest, res) => {
+    const result = await inventoryService.getLowStockProducts({
+      page: req.query.page as string | undefined,
+      limit: req.query.limit as string | undefined,
+    });
 
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Low-stock products retrieved successfully",
+      data: result,
+    });
+  },
+);
 
 export const inventoryController = {
   adjustStock,
   getMovementHistory,
+  getLowStockProducts,
 };

@@ -6,6 +6,7 @@ import { AppError } from "../../utils/AppError";
 import Product from "../product/product.model";
 import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
 import InventoryMovement from "./inventory.model";
+import { calculatePagination } from "../../utils/calculatePagination";
 
 type TAdjustStockPayload = {
   productId: string;
@@ -242,7 +243,48 @@ const getMovementHistory = async (
   };
 };
 
+
+const getLowStockProducts = async (query: {
+  page?: string;
+  limit?: string;
+}) => {
+  const { page, limit: requestedLimit } = calculatePagination(query);
+const limit = Math.min(requestedLimit, 100);
+const skip = (page - 1) * limit;
+
+  const filter = {
+    $expr: {
+      $lte: ["$stockQuantity", "$lowStockThreshold"],
+    },
+  };
+
+  const [products, total] = await Promise.all([
+    Product.find(filter)
+      .select("name slug sku primaryImage stockQuantity lowStockThreshold status")
+      .sort({ stockQuantity: 1, name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+
+    Product.countDocuments(filter),
+  ]);
+
+  const effectiveLimit = Math.min(limit, 100);
+
+  return {
+    products,
+    pagination: {
+      page,
+      limit: effectiveLimit,
+      total,
+      totalPages: Math.ceil(total / effectiveLimit),
+    },
+  };
+};
+
+
 export const inventoryService = {
   adjustStock,
   getMovementHistory,
+  getLowStockProducts,
 };
