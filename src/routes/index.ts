@@ -4,6 +4,7 @@ import cartRoutes from "../modules/cart/cart.route";
 import categoryRoutes from "../modules/category/category.route";
 import contactRoutes from "../modules/contact/contact.route";
 import healthRoutes from "../modules/health/health.route";
+import inventoryRoutes from "../modules/inventory/inventory.route";
 import productRoutes from "../modules/product/product.route";
 import projectRoutes from "../modules/project/project.route";
 import serviceRoutes from "../modules/service/service.route";
@@ -46,6 +47,10 @@ const moduleRoutes: {
   {
     path: "/cart",
     route: cartRoutes,
+  },
+  {
+    path: "/inventory",
+    route: inventoryRoutes,
   },
   { path: "/contact", route: contactRoutes },
 ];
