@@ -73,9 +73,36 @@ const getInventoryStats = catchAsync(
   },
 );
 
+
+const getGlobalMovementHistory = catchAsync(
+  async (req: AuthenticatedRequest, res) => {
+    const result = await inventoryService.getGlobalMovementHistory({
+      page: Number(req.query.page ?? 1),
+      limit: Number(req.query.limit ?? 20),
+      movementType: req.query.movementType as
+        | "initial"
+        | "increase"
+        | "decrease"
+        | undefined,
+      productId: req.query.productId as string | undefined,
+      performedBy: req.query.performedBy as string | undefined,
+      startDate: req.query.startDate as string | undefined,
+      endDate: req.query.endDate as string | undefined,
+    });
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Global inventory movement history retrieved successfully",
+      data: result,
+    });
+  },
+);
+
 export const inventoryController = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
   getInventoryStats,
+  getGlobalMovementHistory,
 };

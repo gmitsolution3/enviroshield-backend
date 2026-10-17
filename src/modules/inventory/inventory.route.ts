@@ -44,4 +44,14 @@ router.get(
   inventoryController.getInventoryStats,
 );
 
+router.get(
+  "/movements",
+  authenticate,
+  authorize("admin"),
+  validateRequest(
+    inventoryValidation.getGlobalMovementHistoryValidationSchema,
+  ),
+  inventoryController.getGlobalMovementHistory,
+);
+
 export default router;

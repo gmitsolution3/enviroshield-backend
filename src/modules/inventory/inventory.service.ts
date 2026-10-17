@@ -318,9 +318,120 @@ const getInventoryStats = async () => {
   };
 };
 
+
+type TGlobalMovementHistoryQuery = {
+  page?: number;
+  limit?: number;
+  movementType?: "initial" | "increase" | "decrease";
+  productId?: string;
+  performedBy?: string;
+  startDate?: string;
+  endDate?: string;
+};
+
+const getGlobalMovementHistory = async (
+  query: TGlobalMovementHistoryQuery,
+) => {
+  const page = Math.max(1, Math.floor(query.page ?? 1));
+  const limit = Math.min(
+    100,
+    Math.max(1, Math.floor(query.limit ?? 20)),
+  );
+  const skip = (page - 1) * limit;
+
+  const filter: Record<string, unknown> = {};
+
+  if (query.movementType) {
+    filter.movementType = query.movementType;
+  }
+
+  if (query.productId) {
+    if (!mongoose.Types.ObjectId.isValid(query.productId)) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Invalid product ID",
+      );
+    }
+
+    filter.productId = new mongoose.Types.ObjectId(query.productId);
+  }
+
+  if (query.performedBy) {
+    filter.performedBy = query.performedBy;
+  }
+
+  if (query.startDate || query.endDate) {
+    const createdAt: Record<string, Date> = {};
+
+    if (query.startDate) {
+      const startDate = new Date(query.startDate);
+
+      if (Number.isNaN(startDate.getTime())) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Invalid start date",
+        );
+      }
+
+      createdAt.$gte = startDate;
+    }
+
+    if (query.endDate) {
+      const endDate = new Date(query.endDate);
+
+      if (Number.isNaN(endDate.getTime())) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Invalid end date",
+        );
+      }
+
+      createdAt.$lte = endDate;
+    }
+
+    if (
+      createdAt.$gte &&
+      createdAt.$lte &&
+      createdAt.$gte > createdAt.$lte
+    ) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Start date must be before or equal to end date",
+      );
+    }
+
+    filter.createdAt = createdAt;
+  }
+
+  const [movements, total] = await Promise.all([
+    InventoryMovement.find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    InventoryMovement.countDocuments(filter),
+  ]);
+
+  const movementsWithPerformers = await Promise.all(
+    movements.map((movement) => attachPerformer(movement)),
+  );
+
+  return {
+    movements: movementsWithPerformers,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+
 export const inventoryService = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
   getInventoryStats,
+  getGlobalMovementHistory,
 };

@@ -84,8 +84,55 @@ const getLowStockProductsValidationSchema = z.object({
   }),
 });
 
+const getGlobalMovementHistoryValidationSchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .default("1")
+      .refine(
+        (value) => /^\d+$/.test(value) && Number(value) >= 1,
+        "Page must be a positive integer",
+      ),
+
+    limit: z
+      .string()
+      .optional()
+      .default("20")
+      .refine(
+        (value) =>
+          /^\d+$/.test(value) &&
+          Number(value) >= 1 &&
+          Number(value) <= 100,
+        "Limit must be an integer between 1 and 100",
+      ),
+
+    movementType: z
+      .enum(["initial", "increase", "decrease"])
+      .optional(),
+
+    productId: z
+      .string()
+      .regex(/^[a-f\d]{24}$/i, "Invalid product ID")
+      .optional(),
+
+    performedBy: z.string().trim().min(1).optional(),
+
+    startDate: z
+      .string()
+      .datetime({ offset: true })
+      .optional(),
+
+    endDate: z
+      .string()
+      .datetime({ offset: true })
+      .optional(),
+  }),
+});
+
 export const inventoryValidation = {
   adjustStockValidationSchema,
   getMovementHistoryValidationSchema,
   getLowStockProductsValidationSchema,
+  getGlobalMovementHistoryValidationSchema,
 };
