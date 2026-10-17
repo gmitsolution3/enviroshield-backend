@@ -1,13 +1,15 @@
 import httpStatus from "http-status";
 import { ObjectId } from "mongodb";
-import mongoose, { Types } from "mongoose";
+import mongoose, { HydratedDocument, Types } from "mongoose";
 import { client } from "../../config/mongodb";
 import { AppError } from "../../utils/AppError";
-import Product from "../product/product.model";
-import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
-import InventoryMovement from "./inventory.model";
 import { calculatePagination } from "../../utils/calculatePagination";
 import { toCsv } from "../../utils/csv";
+import Product from "../product/product.model";
+import type { TProduct } from "../product/product.types";
+import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
+import InventoryMovement from "./inventory.model";
+import { notifyLowStockAdmins } from "./inventory.notification";
 
 type TAdjustStockPayload = {
   productId: string;
@@ -105,9 +107,7 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
   try {
     let result:
       | {
-          product: NonNullable<
-            Awaited<ReturnType<typeof Product.findById>>
-          >;
+          product: HydratedDocument<TProduct>;
           movement: InstanceType<typeof InventoryMovement>;
         }
       | undefined;
@@ -187,6 +187,27 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
       );
     }
 
+    const crossedLowStockThreshold =
+      result.movement.previousStock >
+        result.product.lowStockThreshold &&
+      result.movement.resultingStock <=
+        result.product.lowStockThreshold;
+
+    if (crossedLowStockThreshold) {
+      try {
+        await notifyLowStockAdmins({
+          name: result.product.name,
+          sku: result.product.sku,
+          stockQuantity: result.product.stockQuantity,
+          lowStockThreshold: result.product.lowStockThreshold,
+        });
+      } catch (error) {
+        // The stock transaction already succeeded.
+        // Email failure must not make the adjustment appear to fail.
+        console.error("Failed to send low-stock alert:", error);
+      }
+    }
+
     return result;
   } finally {
     await session.endSession();
@@ -244,14 +265,13 @@ const getMovementHistory = async (
   };
 };
 
-
 const getLowStockProducts = async (query: {
   page?: string;
   limit?: string;
 }) => {
   const { page, limit: requestedLimit } = calculatePagination(query);
-const limit = Math.min(requestedLimit, 100);
-const skip = (page - 1) * limit;
+  const limit = Math.min(requestedLimit, 100);
+  const skip = (page - 1) * limit;
 
   const filter = {
     $expr: {
@@ -261,7 +281,9 @@ const skip = (page - 1) * limit;
 
   const [products, total] = await Promise.all([
     Product.find(filter)
-      .select("name slug sku primaryImage stockQuantity lowStockThreshold status")
+      .select(
+        "name slug sku primaryImage stockQuantity lowStockThreshold status",
+      )
       .sort({ stockQuantity: 1, name: 1 })
       .skip(skip)
       .limit(limit)
@@ -318,7 +340,6 @@ const getInventoryStats = async () => {
     totalUnitsInStock: stockTotals[0]?.totalUnitsInStock ?? 0,
   };
 };
-
 
 type TGlobalMovementHistoryQuery = {
   page?: number;
@@ -428,12 +449,9 @@ const getGlobalMovementHistory = async (
   };
 };
 
-
 const exportStockCsv = async (): Promise<string> => {
   const products = await Product.find({})
-    .select(
-      "name slug sku stockQuantity lowStockThreshold status",
-    )
+    .select("name slug sku stockQuantity lowStockThreshold status")
     .sort({ name: 1, _id: 1 })
     .lean();
 
@@ -459,8 +477,6 @@ const exportStockCsv = async (): Promise<string> => {
 
   return toCsv(headers, rows);
 };
-
-
 
 const exportMovementHistoryCsv = async (): Promise<string> => {
   const movements = await InventoryMovement.find({})
@@ -493,7 +509,9 @@ const exportMovementHistoryCsv = async (): Promise<string> => {
     movement.reason,
     typeof movement.performedBy === "object" &&
     movement.performedBy !== null
-      ? movement.performedBy.name ?? movement.performedBy.email ?? ""
+      ? (movement.performedBy.name ??
+        movement.performedBy.email ??
+        "")
       : movement.performedBy,
     movement.createdAt
       ? new Date(movement.createdAt).toISOString()
@@ -502,7 +520,6 @@ const exportMovementHistoryCsv = async (): Promise<string> => {
 
   return toCsv(headers, rows);
 };
-
 
 export const inventoryService = {
   adjustStock,
