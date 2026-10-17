@@ -60,8 +60,22 @@ const getLowStockProducts = catchAsync(
   },
 );
 
+const getInventoryStats = catchAsync(
+  async (req: AuthenticatedRequest, res) => {
+    const result = await inventoryService.getInventoryStats();
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Inventory statistics retrieved successfully",
+      data: result,
+    });
+  },
+);
+
 export const inventoryController = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
+  getInventoryStats,
 };

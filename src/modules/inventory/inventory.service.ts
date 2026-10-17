@@ -282,9 +282,45 @@ const skip = (page - 1) * limit;
   };
 };
 
+const getInventoryStats = async () => {
+  const lowStockFilter = {
+    $expr: {
+      $lte: ["$stockQuantity", "$lowStockThreshold"],
+    },
+  };
+
+  const [
+    totalProducts,
+    lowStockProducts,
+    outOfStockProducts,
+    stockTotals,
+  ] = await Promise.all([
+    Product.countDocuments({}),
+    Product.countDocuments(lowStockFilter),
+    Product.countDocuments({ stockQuantity: 0 }),
+    Product.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalUnitsInStock: {
+            $sum: "$stockQuantity",
+          },
+        },
+      },
+    ]),
+  ]);
+
+  return {
+    totalProducts,
+    lowStockProducts,
+    outOfStockProducts,
+    totalUnitsInStock: stockTotals[0]?.totalUnitsInStock ?? 0,
+  };
+};
 
 export const inventoryService = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
+  getInventoryStats,
 };

@@ -37,4 +37,11 @@ router.get(
   inventoryController.getLowStockProducts,
 );
 
+router.get(
+  "/stats",
+  authenticate,
+  authorize("admin"),
+  inventoryController.getInventoryStats,
+);
+
 export default router;
