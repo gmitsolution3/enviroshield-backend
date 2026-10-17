@@ -1,5 +1,6 @@
 import { Router } from "express";
 import blogRoutes from "../modules/blog/blog.route";
+import cartRoutes from "../modules/cart/cart.route";
 import categoryRoutes from "../modules/category/category.route";
 import contactRoutes from "../modules/contact/contact.route";
 import healthRoutes from "../modules/health/health.route";
@@ -41,6 +42,10 @@ const moduleRoutes: {
   {
     path: "/product",
     route: productRoutes,
+  },
+  {
+    path: "/cart",
+    route: cartRoutes,
   },
   { path: "/contact", route: contactRoutes },
 ];
