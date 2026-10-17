@@ -1,9 +1,9 @@
-
 import httpStatus from "http-status";
 import { TPaginationOptions } from "../../types/common";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
 import Category from "../category/category.model";
+import { notifyLowStockAdmins } from "../inventory/inventory.notification";
 import { PRODUCT_STATUS } from "./product.constant";
 import Product from "./product.model";
 import { TProduct } from "./product.types";
@@ -42,10 +42,7 @@ const createProduct = async (payload: TProduct) => {
   const category = await Category.findById(payload.categoryId);
 
   if (!category) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Category not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Category not found");
   }
 
   if (payload.status === PRODUCT_STATUS.PUBLISHED) {
@@ -147,10 +144,7 @@ const getProductById = async (productId: string) => {
   const product = await Product.findById(productId);
 
   if (!product) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Product not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
   return product;
@@ -179,20 +173,14 @@ const updateProduct = async (
   const existingProduct = await Product.findById(productId);
 
   if (!existingProduct) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Product not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
   if (payload.categoryId) {
     const category = await Category.findById(payload.categoryId);
 
     if (!category) {
-      throw new AppError(
-        httpStatus.NOT_FOUND,
-        "Category not found",
-      );
+      throw new AppError(httpStatus.NOT_FOUND, "Category not found");
     }
   }
 
@@ -247,10 +235,28 @@ const updateProduct = async (
   );
 
   if (!updatedProduct) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Product not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  const crossedLowStockThreshold =
+    existingProduct.stockQuantity >
+      existingProduct.lowStockThreshold &&
+    updatedProduct.stockQuantity <= updatedProduct.lowStockThreshold;
+
+  if (crossedLowStockThreshold) {
+    try {
+      await notifyLowStockAdmins({
+        name: updatedProduct.name,
+        sku: updatedProduct.sku,
+        stockQuantity: updatedProduct.stockQuantity,
+        lowStockThreshold: updatedProduct.lowStockThreshold,
+      });
+    } catch (error) {
+      console.error(
+        "Failed to send low-stock alert after product update:",
+        error,
+      );
+    }
   }
 
   return updatedProduct;
@@ -260,10 +266,7 @@ const deleteProduct = async (productId: string) => {
   const existingProduct = await Product.findById(productId);
 
   if (!existingProduct) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Product not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
   await Product.findByIdAndDelete(productId);
