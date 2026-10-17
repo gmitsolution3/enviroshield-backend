@@ -7,6 +7,7 @@ import Product from "../product/product.model";
 import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
 import InventoryMovement from "./inventory.model";
 import { calculatePagination } from "../../utils/calculatePagination";
+import { toCsv } from "../../utils/csv";
 
 type TAdjustStockPayload = {
   productId: string;
@@ -428,10 +429,87 @@ const getGlobalMovementHistory = async (
 };
 
 
+const exportStockCsv = async (): Promise<string> => {
+  const products = await Product.find({})
+    .select(
+      "name slug sku stockQuantity lowStockThreshold status",
+    )
+    .sort({ name: 1, _id: 1 })
+    .lean();
+
+  const headers = [
+    "Product ID",
+    "Product Name",
+    "Slug",
+    "SKU",
+    "Stock Quantity",
+    "Low Stock Threshold",
+    "Status",
+  ];
+
+  const rows = products.map((product) => [
+    product._id.toString(),
+    product.name,
+    product.slug,
+    product.sku ?? "",
+    product.stockQuantity,
+    product.lowStockThreshold,
+    product.status,
+  ]);
+
+  return toCsv(headers, rows);
+};
+
+
+
+const exportMovementHistoryCsv = async (): Promise<string> => {
+  const movements = await InventoryMovement.find({})
+    .sort({ createdAt: -1, _id: -1 })
+    .lean();
+
+  const headers = [
+    "Movement ID",
+    "Product ID",
+    "Movement Type",
+    "Quantity",
+    "Previous Stock",
+    "Resulting Stock",
+    "Reason",
+    "Performed By",
+    "Created At",
+  ];
+
+  const movementsWithPerformers = await Promise.all(
+    movements.map((movement) => attachPerformer(movement)),
+  );
+
+  const rows = movementsWithPerformers.map((movement) => [
+    movement._id.toString(),
+    movement.productId.toString(),
+    movement.movementType,
+    movement.quantity,
+    movement.previousStock,
+    movement.resultingStock,
+    movement.reason,
+    typeof movement.performedBy === "object" &&
+    movement.performedBy !== null
+      ? movement.performedBy.name ?? movement.performedBy.email ?? ""
+      : movement.performedBy,
+    movement.createdAt
+      ? new Date(movement.createdAt).toISOString()
+      : "",
+  ]);
+
+  return toCsv(headers, rows);
+};
+
+
 export const inventoryService = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
   getInventoryStats,
   getGlobalMovementHistory,
+  exportStockCsv,
+  exportMovementHistoryCsv,
 };

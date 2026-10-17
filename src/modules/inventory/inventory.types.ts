@@ -13,4 +13,6 @@ export type TInventoryMovement = {
   resultingStock: number;
   reason: string;
   performedBy: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 };

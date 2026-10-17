@@ -99,10 +99,45 @@ const getGlobalMovementHistory = catchAsync(
   },
 );
 
+const exportStockCsv = catchAsync(
+  async (_req: AuthenticatedRequest, res) => {
+    const csv = await inventoryService.exportStockCsv();
+
+    res
+      .status(httpStatus.OK)
+      .setHeader("Content-Type", "text/csv; charset=utf-8")
+      .setHeader(
+        "Content-Disposition",
+        'attachment; filename="inventory-stock.csv"',
+      )
+      .send(csv);
+  },
+);
+
+
+const exportMovementHistoryCsv = catchAsync(
+  async (_req: AuthenticatedRequest, res) => {
+    const csv =
+      await inventoryService.exportMovementHistoryCsv();
+
+    res
+      .status(httpStatus.OK)
+      .setHeader("Content-Type", "text/csv; charset=utf-8")
+      .setHeader(
+        "Content-Disposition",
+        'attachment; filename="inventory-movements.csv"',
+      )
+      .send(csv);
+  },
+);
+
+
 export const inventoryController = {
   adjustStock,
   getMovementHistory,
   getLowStockProducts,
   getInventoryStats,
   getGlobalMovementHistory,
+  exportStockCsv,
+  exportMovementHistoryCsv,
 };

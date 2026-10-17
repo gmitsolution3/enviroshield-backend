@@ -8,6 +8,20 @@ import { inventoryValidation } from "./inventory.validation";
 
 const router = Router();
 
+router.get(
+  "/export/stock",
+  authenticate,
+  authorize("admin"),
+  inventoryController.exportStockCsv,
+);
+
+router.get(
+  "/export/movements",
+  authenticate,
+  authorize("admin"),
+  inventoryController.exportMovementHistoryCsv,
+);
+
 router.post(
   "/:productId/adjust",
   authenticate,
