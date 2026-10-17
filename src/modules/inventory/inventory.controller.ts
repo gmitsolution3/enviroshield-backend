@@ -24,6 +24,29 @@ const adjustStock = catchAsync(
   },
 );
 
+const getMovementHistory = catchAsync(
+  async (req: AuthenticatedRequest, res) => {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+
+    const result = await inventoryService.getMovementHistory(
+      req.params.productId as string,
+      page,
+      limit,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Inventory movement history retrieved successfully",
+      data: result,
+    });
+  },
+);
+
+
+
 export const inventoryController = {
   adjustStock,
+  getMovementHistory,
 };

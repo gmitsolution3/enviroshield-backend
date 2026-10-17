@@ -1,5 +1,7 @@
 import httpStatus from "http-status";
+import { ObjectId } from "mongodb";
 import mongoose, { Types } from "mongoose";
+import { client } from "../../config/mongodb";
 import { AppError } from "../../utils/AppError";
 import Product from "../product/product.model";
 import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
@@ -11,6 +13,54 @@ type TAdjustStockPayload = {
   quantity: number;
   reason: string;
   performedBy: string;
+};
+
+const getPerformerDetails = async (performerId: string) => {
+  if (!ObjectId.isValid(performerId)) {
+    return null;
+  }
+
+  const db = client.db(process.env.MONGODB_DB);
+
+  const user = await db.collection("user").findOne(
+    {
+      _id: new ObjectId(performerId),
+    },
+    {
+      projection: {
+        _id: 0,
+        id: 1,
+        name: 1,
+        email: 1,
+        image: 1,
+      },
+    },
+  );
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image ?? null,
+  };
+};
+
+const attachPerformer = async (movement: any) => {
+  const movementObject =
+    typeof movement.toObject === "function"
+      ? movement.toObject()
+      : movement;
+
+  return {
+    ...movementObject,
+    performedBy: await getPerformerDetails(
+      movementObject.performedBy,
+    ),
+  };
 };
 
 const adjustStock = async (payload: TAdjustStockPayload) => {
@@ -141,6 +191,58 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
   }
 };
 
+const getMovementHistory = async (
+  productId: string,
+  page = 1,
+  limit = 20,
+) => {
+  if (!Types.ObjectId.isValid(productId)) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid product ID");
+  }
+
+  const normalizedPage = Math.max(1, Math.floor(page));
+  const normalizedLimit = Math.min(
+    100,
+    Math.max(1, Math.floor(limit)),
+  );
+  const skip = (normalizedPage - 1) * normalizedLimit;
+
+  const productExists = await Product.exists({ _id: productId });
+
+  if (!productExists) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  const filter = {
+    productId: new Types.ObjectId(productId),
+  };
+
+  const [movements, total] = await Promise.all([
+    InventoryMovement.find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(normalizedLimit)
+      .lean(),
+
+    InventoryMovement.countDocuments(filter),
+  ]);
+
+  const enrichedMovements = await Promise.all(
+    movements.map((movement) => attachPerformer(movement)),
+  );
+
+  return {
+    movements: enrichedMovements,
+    pagination: {
+      page: normalizedPage,
+      limit: normalizedLimit,
+      total,
+      totalPages: Math.ceil(total / normalizedLimit),
+    },
+  };
+};
+
 export const inventoryService = {
   adjustStock,
+  getMovementHistory,
 };

@@ -27,6 +27,38 @@ const adjustStockValidationSchema = z.object({
   }),
 });
 
+
+const getMovementHistoryValidationSchema = z.object({
+  params: z.object({
+    productId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "Invalid product ID"),
+  }),
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .default("1")
+      .refine(
+        (value) => /^\d+$/.test(value) && Number(value) >= 1,
+        "Page must be a positive integer",
+      ),
+
+    limit: z
+      .string()
+      .optional()
+      .default("20")
+      .refine(
+        (value) =>
+          /^\d+$/.test(value) &&
+          Number(value) >= 1 &&
+          Number(value) <= 100,
+        "Limit must be an integer between 1 and 100",
+      ),
+  }),
+});
+
 export const inventoryValidation = {
   adjustStockValidationSchema,
+  getMovementHistoryValidationSchema,
 };

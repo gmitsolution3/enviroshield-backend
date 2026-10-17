@@ -16,4 +16,16 @@ router.post(
   inventoryController.adjustStock,
 );
 
+
+router.get(
+  "/:productId/movements",
+  authenticate,
+  authorize("admin"),
+  validateRequest(
+    inventoryValidation.getMovementHistoryValidationSchema,
+  ),
+  inventoryController.getMovementHistory,
+);
+
+
 export default router;
