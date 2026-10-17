@@ -1,10 +1,12 @@
 import { Router } from "express";
 import blogRoutes from "../modules/blog/blog.route";
+import categoryRoutes from "../modules/category/category.route";
+import contactRoutes from "../modules/contact/contact.route";
 import healthRoutes from "../modules/health/health.route";
+import productRoutes from "../modules/product/product.route";
 import projectRoutes from "../modules/project/project.route";
 import serviceRoutes from "../modules/service/service.route";
 import testimonialRoutes from "../modules/testimonial/testimonial.route";
-import contactRoutes from "../modules/contact/contact.route";
 
 const router = Router();
 
@@ -31,6 +33,14 @@ const moduleRoutes: {
   {
     path: "/testimonial",
     route: testimonialRoutes,
+  },
+  {
+    path: "/category",
+    route: categoryRoutes,
+  },
+  {
+    path: "/product",
+    route: productRoutes,
   },
   { path: "/contact", route: contactRoutes },
 ];
