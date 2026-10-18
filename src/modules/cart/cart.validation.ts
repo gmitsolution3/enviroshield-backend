@@ -1,4 +1,3 @@
-
 import { z } from "zod";
 
 const cartItemSchema = z.object({
@@ -9,7 +8,8 @@ const cartItemSchema = z.object({
   quantity: z
     .number()
     .int("Quantity must be a whole number")
-    .positive("Quantity must be greater than zero"),
+    .min(1, "Quantity must be greater than zero")
+    .max(99, "Quantity cannot exceed 99"),
 });
 
 const calculateCartValidationSchema = z.object({

@@ -1,4 +1,3 @@
-
 import httpStatus from "http-status";
 import { Types } from "mongoose";
 import { AppError } from "../../utils/AppError";
@@ -21,10 +20,17 @@ const calculateCart = async (payload: TCalculateCartPayload) => {
   for (const item of payload.items) {
     const productId = item.productId.toLowerCase();
 
-    requestedQuantities.set(
-      productId,
-      (requestedQuantities.get(productId) ?? 0) + item.quantity,
-    );
+    const combinedQuantity =
+      (requestedQuantities.get(productId) ?? 0) + item.quantity;
+
+    if (combinedQuantity > 99) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Combined quantity for a product cannot exceed 99",
+      );
+    }
+
+    requestedQuantities.set(productId, combinedQuantity);
   }
 
   const productIds = [...requestedQuantities.keys()];
@@ -82,7 +88,9 @@ const calculateCart = async (payload: TCalculateCartPayload) => {
   });
 
   const subtotal = Number(
-    items.reduce((total, item) => total + item.lineTotal, 0).toFixed(2),
+    items
+      .reduce((total, item) => total + item.lineTotal, 0)
+      .toFixed(2),
   );
 
   const totalItems = items.reduce(
