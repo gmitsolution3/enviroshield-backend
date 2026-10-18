@@ -1,15 +1,20 @@
-
 import { randomBytes } from "crypto";
 import httpStatus from "http-status";
 import mongoose, { Types } from "mongoose";
 import { AppError } from "../../utils/AppError";
-import { DELIVERY_ZONE, ORDER_STATUS, PAYMENT_METHOD, PAYMENT_STATUS } from "./order.constant";
-import type { TDeliveryZone } from "./order.types";
-import Order from "./order.model";
-import Product from "../product/product.model";
-import { PRODUCT_STATUS } from "../product/product.constant";
-import InventoryMovement from "../inventory/inventory.model";
 import { INVENTORY_MOVEMENT_TYPE } from "../inventory/inventory.constant";
+import InventoryMovement from "../inventory/inventory.model";
+import { PRODUCT_STATUS } from "../product/product.constant";
+import Product from "../product/product.model";
+import {
+  DELIVERY_ZONE,
+  ORDER_STATUS,
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+} from "./order.constant";
+import Order from "./order.model";
+import { orderNotification } from "./order.notification";
+import type { TDeliveryZone } from "./order.types";
 
 type TCreateOrderPayload = {
   items: {
@@ -31,7 +36,6 @@ type TCreateOrderPayload = {
   customerNote?: string;
 };
 
-
 type TOrderQuery = {
   page?: string;
   limit?: string;
@@ -39,7 +43,6 @@ type TOrderQuery = {
   paymentStatus?: string;
   orderNumber?: string;
 };
-
 
 const DELIVERY_FEES: Record<TDeliveryZone, number> = {
   [DELIVERY_ZONE.DHAKA]: 60,
@@ -62,7 +65,10 @@ const createOrder = async (
 
   for (const item of payload.items) {
     if (!Types.ObjectId.isValid(item.productId)) {
-      throw new AppError(httpStatus.BAD_REQUEST, "Invalid product ID");
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Invalid product ID",
+      );
     }
 
     const productId = item.productId.toLowerCase();
@@ -177,7 +183,9 @@ const createOrder = async (
       }
 
       const subtotal = Number(
-        items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2),
+        items
+          .reduce((sum, item) => sum + item.lineTotal, 0)
+          .toFixed(2),
       );
 
       const deliveryFee = DELIVERY_FEES[payload.deliveryZone];
@@ -230,17 +238,26 @@ const createOrder = async (
       );
     }
 
+    // Send the confirmation email after the order transaction commits.
+    try {
+      await orderNotification.notifyOrderPlaced(order);
+    } catch (error) {
+      // The order was already created successfully.
+      // Email failure must not make the order request fail.
+      console.error(
+        `Failed to send order confirmation email for ${order.orderNumber}:`,
+        error,
+      );
+    }
+
     return order;
+
   } finally {
     await session.endSession();
   }
 };
 
-
-const getOrders = async (
-  query: TOrderQuery,
-  userId?: string,
-) => {
+const getOrders = async (query: TOrderQuery, userId?: string) => {
   const page = Math.max(1, Number(query.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
   const skip = (page - 1) * limit;
@@ -283,10 +300,7 @@ const getOrders = async (
   };
 };
 
-const getMyOrders = async (
-  userId: string,
-  query: TOrderQuery,
-) => {
+const getMyOrders = async (userId: string, query: TOrderQuery) => {
   if (!userId) {
     throw new AppError(
       httpStatus.UNAUTHORIZED,
@@ -301,10 +315,7 @@ const getAllOrders = async (query: TOrderQuery) => {
   return getOrders(query);
 };
 
-const getMyOrderById = async (
-  userId: string,
-  orderId: string,
-) => {
+const getMyOrderById = async (userId: string, orderId: string) => {
   const order = await Order.findOne({
     _id: orderId,
     userId,
