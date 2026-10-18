@@ -5,6 +5,7 @@ import categoryRoutes from "../modules/category/category.route";
 import contactRoutes from "../modules/contact/contact.route";
 import healthRoutes from "../modules/health/health.route";
 import inventoryRoutes from "../modules/inventory/inventory.route";
+import orderRoutes from "../modules/order/order.route";
 import productRoutes from "../modules/product/product.route";
 import projectRoutes from "../modules/project/project.route";
 import serviceRoutes from "../modules/service/service.route";
@@ -51,6 +52,10 @@ const moduleRoutes: {
   {
     path: "/inventory",
     route: inventoryRoutes,
+  },
+  {
+    path: "/order",
+    route: orderRoutes,
   },
   { path: "/contact", route: contactRoutes },
 ];
