@@ -42,6 +42,15 @@ router.get(
   orderController.getOrderById,
 );
 
+router.patch(
+  "/:id/status",
+  authenticate,
+  authorize("admin"),
+  validateRequest(orderValidation.updateOrderStatusValidationSchema),
+  orderController.updateOrderStatus,
+);
+
+
 // Create an order
 router.post(
   "/",

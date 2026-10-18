@@ -14,7 +14,7 @@ import {
 } from "./order.constant";
 import Order from "./order.model";
 import { orderNotification } from "./order.notification";
-import type { TDeliveryZone } from "./order.types";
+import type { TDeliveryZone, TOrderStatus } from "./order.types";
 
 type TCreateOrderPayload = {
   items: {
@@ -338,10 +338,47 @@ const getOrderById = async (orderId: string) => {
   return order;
 };
 
+const updateOrderStatus = async (
+  orderId: string,
+  newStatus: TOrderStatus,
+) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  const previousStatus = order.status;
+
+  // Avoid unnecessary database writes and duplicate emails.
+  if (previousStatus === newStatus) {
+    return order;
+  }
+
+  order.status = newStatus;
+  await order.save();
+
+  // The status is saved, so email failure must not undo the update.
+  try {
+    await orderNotification.notifyOrderStatusUpdated(
+      order,
+      previousStatus,
+    );
+  } catch (error) {
+    console.error(
+      `Failed to send status update email for ${order.orderNumber}:`,
+      error,
+    );
+  }
+
+  return order;
+};
+
 export const orderService = {
   createOrder,
   getMyOrders,
   getAllOrders,
   getMyOrderById,
   getOrderById,
+  updateOrderStatus,
 };

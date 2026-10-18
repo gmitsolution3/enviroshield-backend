@@ -85,6 +85,22 @@ const orderIdParamsSchema = z.object({
   }),
 });
 
+const updateOrderStatusValidationSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid order ID"),
+  }),
+  body: z.object({
+    status: z.enum([
+      "pending",
+      "confirmed",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ]),
+  }),
+});
+
 const getOrdersQuerySchema = z.object({
   query: z.object({
     page: z
@@ -134,4 +150,5 @@ export const orderValidation = {
   createOrderValidationSchema,
   orderIdParamsSchema,
   getOrdersQuerySchema,
+  updateOrderStatusValidationSchema,
 };
