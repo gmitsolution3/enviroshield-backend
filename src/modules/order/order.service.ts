@@ -14,7 +14,7 @@ import {
 } from "./order.constant";
 import Order from "./order.model";
 import { orderNotification } from "./order.notification";
-import type { TDeliveryZone, TOrderStatus } from "./order.types";
+import type { TDeliveryZone, TOrder, TOrderStatus } from "./order.types";
 
 type TCreateOrderPayload = {
   items: {
@@ -462,7 +462,6 @@ const updatePaymentStatus = async (orderId: string) => {
   return updatedOrder;
 };
 
-
 const cancelOrder = async (
   orderId: string,
   actor: { id: string; role: "user" | "admin" },
@@ -471,7 +470,7 @@ const cancelOrder = async (
   const session = await mongoose.startSession();
 
   try {
-    let cancelledOrder: Awaited<ReturnType<typeof Order.findById>> = null;
+    let cancelledOrder: TOrder | null = null;
 
     await session.withTransaction(async () => {
       const allowedStatuses: TOrderStatus[] =
@@ -510,7 +509,8 @@ const cancelOrder = async (
       );
 
       if (!order) {
-        const existingOrder = await Order.findById(orderId).session(session);
+        const existingOrder =
+          await Order.findById(orderId).session(session);
 
         if (!existingOrder) {
           throw new AppError(httpStatus.NOT_FOUND, "Order not found");
@@ -539,9 +539,9 @@ const cancelOrder = async (
       }
 
       for (const item of order.items) {
-        const product = await Product.findById(item.productId).session(
-          session,
-        );
+        const product = await Product.findById(
+          item.productId,
+        ).session(session);
 
         if (!product) {
           throw new AppError(
@@ -598,6 +598,19 @@ const cancelOrder = async (
       throw new AppError(
         httpStatus.INTERNAL_SERVER_ERROR,
         "Order cancellation failed",
+      );
+    }
+
+    const orderToNotify: TOrder = cancelledOrder;
+
+    // Send the cancellation email only after the transaction commits.
+    // Email failure must not undo the cancellation or fail the request.
+    try {
+      await orderNotification.notifyOrderCancelled(orderToNotify);
+    } catch (error) {
+      console.error(
+        `Failed to send cancellation email for ${orderToNotify.orderNumber}:`,
+        error,
       );
     }
 

@@ -341,8 +341,90 @@ const notifyPaymentConfirmed = async (order: TOrder): Promise<void> => {
   );
 };
 
+
+const notifyOrderCancelled = async (order: TOrder): Promise<void> => {
+  const subject = `Order cancelled — ${order.orderNumber}`;
+  const preview = `Your Enviroshield order ${order.orderNumber} has been cancelled.`;
+
+  const reason = order.cancellationReason?.trim();
+
+  const reasonHtml = reason
+    ? `
+      <div style="margin-top:16px;color:#64748b;font-size:12px;">
+        Cancellation reason
+      </div>
+      <div style="margin-top:5px;color:#18384a;font-weight:600;">
+        ${escapeHtml(reason)}
+      </div>
+    `
+    : "";
+
+  const children = `
+    <div style="color:#016edc;font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;">
+      Order cancellation
+    </div>
+
+    <h1 style="color:#00334e;font-size:28px;line-height:36px;margin:12px 0;">
+      Your order has been cancelled
+    </h1>
+
+    <p style="color:#18384a;font-size:15px;line-height:25px;">
+      Hello ${escapeHtml(order.customer.name)}, your Enviroshield order has
+      been cancelled successfully.
+    </p>
+
+    <div style="margin:24px 0;padding:20px;background:#f0f0fa;border-radius:10px;">
+      <div style="color:#64748b;font-size:12px;">Order number</div>
+      <div style="margin:5px 0 18px;color:#00334e;font-size:20px;font-weight:800;">
+        ${escapeHtml(order.orderNumber)}
+      </div>
+
+      <div style="color:#64748b;font-size:12px;">Order status</div>
+      <div style="margin-top:5px;color:#b42318;font-size:18px;font-weight:800;">
+        Cancelled
+      </div>
+
+      ${reasonHtml}
+    </div>
+
+    <p style="color:#18384a;font-size:14px;line-height:24px;">
+      If you have questions about this cancellation, please contact our team.
+    </p>
+
+    <p style="color:#64748b;font-size:13px;line-height:22px;">
+      If a payment was already collected, any applicable refund will be handled
+      separately according to our refund policy.
+    </p>
+  `;
+
+  const text = [
+    "ENVIROSHIELD — ORDER CANCELLATION",
+    "",
+    `Hello ${order.customer.name},`,
+    "Your order has been cancelled successfully.",
+    "",
+    `Order number: ${order.orderNumber}`,
+    "Order status: Cancelled",
+    ...(reason ? [`Cancellation reason: ${reason}`] : []),
+    "",
+    "If you have questions about this cancellation, please contact our team.",
+    "If a payment was already collected, any applicable refund will be handled separately according to our refund policy.",
+    "",
+    "Enviroshield",
+  ].join("\n");
+
+  await sendCustomerEmail(
+    order.customer.email,
+    subject,
+    preview,
+    children,
+    text,
+  );
+};
+
 export const orderNotification = {
   notifyOrderPlaced,
   notifyOrderStatusUpdated,
   notifyPaymentConfirmed,
+  notifyOrderCancelled,
 };
