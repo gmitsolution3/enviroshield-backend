@@ -14,7 +14,12 @@ import {
 } from "./order.constant";
 import Order from "./order.model";
 import { orderNotification } from "./order.notification";
-import type { TDeliveryZone, TOrder, TOrderStatus } from "./order.types";
+import type {
+  TDeliveryZone,
+  TOrder,
+  TOrderStatus,
+} from "./order.types";
+import { notifyLowStockAdmins } from "../inventory/inventory.notification";
 
 type TCreateOrderPayload = {
   items: {
@@ -90,7 +95,20 @@ const createOrder = async (
   try {
     let createdOrderId: Types.ObjectId | undefined;
 
+    // Collect low-stock alerts during the transaction.
+    // Emails will only be sent after the transaction succeeds.
+    const lowStockAlerts: {
+      name: string;
+      sku: string;
+      stockQuantity: number;
+      lowStockThreshold: number;
+    }[] = [];
+
     await session.withTransaction(async () => {
+      // MongoDB can retry a transaction callback.
+      // Clear alerts so a retry cannot create duplicate emails.
+      lowStockAlerts.length = 0;
+
       const productIds = [...requestedQuantities.keys()].map(
         (id) => new Types.ObjectId(id),
       );
@@ -99,7 +117,9 @@ const createOrder = async (
         _id: { $in: productIds },
         status: PRODUCT_STATUS.PUBLISHED,
       })
-        .select("_id name slug sku primaryImage price stockQuantity")
+        .select(
+          "_id name slug sku primaryImage price stockQuantity lowStockThreshold",
+        )
         .session(session);
 
       if (products.length !== productIds.length) {
@@ -152,6 +172,22 @@ const createOrder = async (
         }
 
         const resultingStock = updatedProduct.stockQuantity;
+
+        // Alert only when stock crosses from above the threshold
+        // to the threshold or below it.
+        const crossedLowStockThreshold =
+          previousStock > product.lowStockThreshold &&
+          resultingStock <= product.lowStockThreshold;
+
+        if (crossedLowStockThreshold) {
+          lowStockAlerts.push({
+            name: product.name,
+            sku: product.sku,
+            stockQuantity: resultingStock,
+            lowStockThreshold: product.lowStockThreshold,
+          });
+        }
+
         const unitPrice = product.price;
         const lineTotal = Number((unitPrice * quantity).toFixed(2));
 
@@ -236,6 +272,19 @@ const createOrder = async (
         httpStatus.INTERNAL_SERVER_ERROR,
         "Order was created but could not be retrieved",
       );
+    }
+
+    // Send low-stock alerts only after the order transaction commits.
+    for (const product of lowStockAlerts) {
+      try {
+        await notifyLowStockAdmins(product);
+      } catch (error) {
+        // The order succeeded. Email failure must not undo the order.
+        console.error(
+          `Failed to send purchase-triggered low-stock alert for ${product.name}:`,
+          error,
+        );
+      }
     }
 
     // Send the confirmation email after the order transaction commits.
