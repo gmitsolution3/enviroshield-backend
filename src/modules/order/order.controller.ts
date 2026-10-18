@@ -155,6 +155,59 @@ const updatePaymentStatus = catchAsync(
   },
 );
 
+
+const cancelMyOrder = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      return sendResponse(res, {
+        statusCode: httpStatus.UNAUTHORIZED,
+        success: false,
+        message: "Authentication required",
+        data: null,
+      });
+    }
+
+    const order = await orderService.cancelOrder(
+      req.params.id as string,
+      { id: req.user.id, role: "user" },
+      req.body.reason,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Order cancelled successfully",
+      data: order,
+    });
+  },
+);
+
+const cancelOrderAdmin = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      return sendResponse(res, {
+        statusCode: httpStatus.UNAUTHORIZED,
+        success: false,
+        message: "Authentication required",
+        data: null,
+      });
+    }
+
+    const order = await orderService.cancelOrder(
+      req.params.id as string,
+      { id: req.user.id, role: "admin" },
+      req.body.reason,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Order cancelled successfully",
+      data: order,
+    });
+  },
+);
+
 export const orderController = {
   createOrder,
   getMyOrders,
@@ -163,4 +216,6 @@ export const orderController = {
   getOrderById,
   updateOrderStatus,
   updatePaymentStatus,
+  cancelMyOrder,
+  cancelOrderAdmin,
 };

@@ -25,6 +25,15 @@ router.get(
   orderController.getMyOrderById,
 );
 
+router.patch(
+  "/mine/:id/cancel",
+  authenticate,
+  authorize("user"),
+  validateRequest(orderValidation.cancelOrderValidationSchema),
+  orderController.cancelMyOrder,
+);
+
+
 // Admin routes
 router.get(
   "/",
@@ -57,6 +66,15 @@ router.patch(
   validateRequest(orderValidation.updatePaymentStatusValidationSchema),
   orderController.updatePaymentStatus,
 );
+
+router.patch(
+  "/:id/cancel",
+  authenticate,
+  authorize("admin"),
+  validateRequest(orderValidation.cancelOrderValidationSchema),
+  orderController.cancelOrderAdmin,
+);
+
 
 // Create an order
 router.post(

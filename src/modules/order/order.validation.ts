@@ -156,10 +156,27 @@ const getOrdersQuerySchema = z.object({
   }),
 });
 
+
+const cancelOrderValidationSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid order ID"),
+  }),
+  body: z.object({
+    reason: z
+      .string()
+      .trim()
+      .min(3, "Cancellation reason must contain at least 3 characters")
+      .max(500, "Cancellation reason cannot exceed 500 characters")
+      .optional(),
+  }),
+});
+
+
 export const orderValidation = {
   createOrderValidationSchema,
   orderIdParamsSchema,
   getOrdersQuerySchema,
   updateOrderStatusValidationSchema,
   updatePaymentStatusValidationSchema,
+  cancelOrderValidationSchema,
 };

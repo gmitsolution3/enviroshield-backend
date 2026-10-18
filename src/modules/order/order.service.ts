@@ -462,6 +462,151 @@ const updatePaymentStatus = async (orderId: string) => {
   return updatedOrder;
 };
 
+
+const cancelOrder = async (
+  orderId: string,
+  actor: { id: string; role: "user" | "admin" },
+  reason?: string,
+) => {
+  const session = await mongoose.startSession();
+
+  try {
+    let cancelledOrder: Awaited<ReturnType<typeof Order.findById>> = null;
+
+    await session.withTransaction(async () => {
+      const allowedStatuses: TOrderStatus[] =
+        actor.role === "admin"
+          ? [
+              ORDER_STATUS.PENDING,
+              ORDER_STATUS.CONFIRMED,
+              ORDER_STATUS.PROCESSING,
+            ]
+          : [ORDER_STATUS.PENDING];
+
+      const orderFilter: Record<string, unknown> = {
+        _id: orderId,
+        status: { $in: allowedStatuses },
+      };
+
+      if (actor.role === "user") {
+        orderFilter.userId = actor.id;
+      }
+
+      // Claim the cancellation atomically. A concurrent cancellation
+      // cannot also claim this order and restore its stock.
+      const order = await Order.findOneAndUpdate(
+        orderFilter,
+        {
+          $set: {
+            status: ORDER_STATUS.CANCELLED,
+            ...(reason ? { cancellationReason: reason } : {}),
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session,
+        },
+      );
+
+      if (!order) {
+        const existingOrder = await Order.findById(orderId).session(session);
+
+        if (!existingOrder) {
+          throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+        }
+
+        if (
+          actor.role === "user" &&
+          existingOrder.userId !== actor.id
+        ) {
+          throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+        }
+
+        if (existingOrder.status === ORDER_STATUS.CANCELLED) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            "Order has already been cancelled",
+          );
+        }
+
+        throw new AppError(
+          httpStatus.CONFLICT,
+          actor.role === "admin"
+            ? "This order can no longer be cancelled"
+            : "You can only cancel orders that are pending",
+        );
+      }
+
+      for (const item of order.items) {
+        const product = await Product.findById(item.productId).session(
+          session,
+        );
+
+        if (!product) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            `Cannot restore stock: product "${item.name}" no longer exists`,
+          );
+        }
+
+        const previousStock = product.stockQuantity;
+        const resultingStock = previousStock + item.quantity;
+
+        const updatedProduct = await Product.findOneAndUpdate(
+          {
+            _id: item.productId,
+            stockQuantity: previousStock,
+          },
+          {
+            $inc: { stockQuantity: item.quantity },
+          },
+          {
+            new: true,
+            runValidators: true,
+            session,
+          },
+        );
+
+        if (!updatedProduct) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            `Stock changed while cancelling "${item.name}". Please retry.`,
+          );
+        }
+
+        await InventoryMovement.create(
+          [
+            {
+              productId: item.productId,
+              movementType: INVENTORY_MOVEMENT_TYPE.INCREASE,
+              quantity: item.quantity,
+              previousStock,
+              resultingStock: updatedProduct.stockQuantity,
+              reason: `Order ${order.orderNumber} cancelled`,
+              performedBy: actor.id,
+            },
+          ],
+          { session },
+        );
+      }
+
+      cancelledOrder = order;
+    });
+
+    if (!cancelledOrder) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Order cancellation failed",
+      );
+    }
+
+    return cancelledOrder;
+  } finally {
+    await session.endSession();
+  }
+};
+
 export const orderService = {
   createOrder,
   getMyOrders,
@@ -470,4 +615,5 @@ export const orderService = {
   getOrderById,
   updateOrderStatus,
   updatePaymentStatus,
+  cancelOrder,
 };
