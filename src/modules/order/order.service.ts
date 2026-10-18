@@ -251,7 +251,6 @@ const createOrder = async (
     }
 
     return order;
-
   } finally {
     await session.endSession();
   }
@@ -374,6 +373,95 @@ const updateOrderStatus = async (
   return order;
 };
 
+const updatePaymentStatus = async (orderId: string) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  if (order.paymentMethod !== PAYMENT_METHOD.COD) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Manual payment confirmation is only available for COD orders",
+    );
+  }
+
+  if (order.status === ORDER_STATUS.CANCELLED) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Payment cannot be confirmed for a cancelled order",
+    );
+  }
+
+  // Already paid: return without sending another email.
+  if (order.paymentStatus === PAYMENT_STATUS.PAID) {
+    return order;
+  }
+
+  // Atomically confirm payment only if it is still pending
+  // and the order has not been cancelled.
+  const updatedOrder = await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      paymentMethod: PAYMENT_METHOD.COD,
+      paymentStatus: PAYMENT_STATUS.PENDING,
+      status: { $ne: ORDER_STATUS.CANCELLED },
+    },
+    {
+      $set: { paymentStatus: PAYMENT_STATUS.PAID },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!updatedOrder) {
+    // Another request may have confirmed payment first.
+    const latestOrder = await Order.findById(orderId);
+
+    if (!latestOrder) {
+      throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+    }
+
+    if (latestOrder.paymentStatus === PAYMENT_STATUS.PAID) {
+      return latestOrder;
+    }
+
+    if (latestOrder.paymentMethod !== PAYMENT_METHOD.COD) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Manual payment confirmation is only available for COD orders",
+      );
+    }
+
+    if (latestOrder.status === ORDER_STATUS.CANCELLED) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        "Payment cannot be confirmed for a cancelled order",
+      );
+    }
+
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Payment status changed. Please refresh the order and try again.",
+    );
+  }
+
+  // Payment is already saved. Email failure must not undo it.
+  try {
+    await orderNotification.notifyPaymentConfirmed(updatedOrder);
+  } catch (error) {
+    console.error(
+      `Failed to send payment confirmation email for ${updatedOrder.orderNumber}:`,
+      error,
+    );
+  }
+
+  return updatedOrder;
+};
+
 export const orderService = {
   createOrder,
   getMyOrders,
@@ -381,4 +469,5 @@ export const orderService = {
   getMyOrderById,
   getOrderById,
   updateOrderStatus,
+  updatePaymentStatus,
 };

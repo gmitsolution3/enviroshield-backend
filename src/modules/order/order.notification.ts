@@ -272,7 +272,77 @@ const notifyOrderStatusUpdated = async (
   );
 };
 
+
+const notifyPaymentConfirmed = async (order: TOrder): Promise<void> => {
+  const subject = `Payment confirmed — ${order.orderNumber}`;
+  const preview = `Your payment for order ${order.orderNumber} has been confirmed.`;
+
+  const children = `
+    <div style="color:#016edc;font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;">
+      Payment confirmation
+    </div>
+
+    <h1 style="color:#00334e;font-size:28px;line-height:36px;margin:12px 0;">
+      Payment received!
+    </h1>
+
+    <p style="color:#18384a;font-size:15px;line-height:25px;">
+      Hello ${escapeHtml(order.customer.name)}, we've confirmed receipt of your
+      cash-on-delivery payment. Thank you for choosing Enviroshield.
+    </p>
+
+    <div style="margin:24px 0;padding:20px;background:#f0f0fa;border-radius:10px;">
+      <div style="color:#64748b;font-size:12px;">Order number</div>
+      <div style="margin:5px 0 18px;color:#00334e;font-size:20px;font-weight:800;">
+        ${escapeHtml(order.orderNumber)}
+      </div>
+
+      <div style="color:#64748b;font-size:12px;">Payment status</div>
+      <div style="margin-top:5px;color:#016edc;font-size:20px;font-weight:800;">
+        Paid
+      </div>
+
+      <div style="margin-top:16px;color:#64748b;font-size:12px;">Amount paid</div>
+      <div style="margin-top:5px;color:#00334e;font-size:24px;font-weight:800;">
+        ${formatBDT(order.totalAmount)}
+      </div>
+    </div>
+
+    <p style="color:#18384a;font-size:14px;line-height:24px;">
+      <strong>Payment method:</strong> Cash on delivery
+    </p>
+
+    <p style="margin-top:24px;color:#64748b;font-size:13px;line-height:22px;">
+      Keep this email for your records. If you have any questions about your
+      payment, please contact our team.
+    </p>
+  `;
+
+  const text = [
+    "ENVIROSHIELD — PAYMENT CONFIRMATION",
+    "",
+    `Hello ${order.customer.name},`,
+    "We've confirmed receipt of your cash-on-delivery payment.",
+    "",
+    `Order number: ${order.orderNumber}`,
+    "Payment status: Paid",
+    `Amount paid: ${formatBDT(order.totalAmount)}`,
+    "Payment method: Cash on delivery",
+    "",
+    "Thank you for choosing Enviroshield.",
+  ].join("\n");
+
+  await sendCustomerEmail(
+    order.customer.email,
+    subject,
+    preview,
+    children,
+    text,
+  );
+};
+
 export const orderNotification = {
   notifyOrderPlaced,
   notifyOrderStatusUpdated,
+  notifyPaymentConfirmed,
 };

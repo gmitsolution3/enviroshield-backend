@@ -101,6 +101,18 @@ const updateOrderStatusValidationSchema = z.object({
   }),
 });
 
+
+const updatePaymentStatusValidationSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid order ID"),
+  }),
+  body: z.object({
+    // For COD, this endpoint is used to confirm collected payment.
+    paymentStatus: z.enum(["paid"]),
+  }),
+});
+
+
 const getOrdersQuerySchema = z.object({
   query: z.object({
     page: z
@@ -144,11 +156,10 @@ const getOrdersQuerySchema = z.object({
   }),
 });
 
-
-
 export const orderValidation = {
   createOrderValidationSchema,
   orderIdParamsSchema,
   getOrdersQuerySchema,
   updateOrderStatusValidationSchema,
+  updatePaymentStatusValidationSchema,
 };

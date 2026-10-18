@@ -140,6 +140,21 @@ const updateOrderStatus = catchAsync(
   },
 );
 
+const updatePaymentStatus = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const order = await orderService.updatePaymentStatus(
+      req.params.id as string,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Payment status updated successfully",
+      data: order,
+    });
+  },
+);
+
 export const orderController = {
   createOrder,
   getMyOrders,
@@ -147,4 +162,5 @@ export const orderController = {
   getMyOrderById,
   getOrderById,
   updateOrderStatus,
+  updatePaymentStatus,
 };

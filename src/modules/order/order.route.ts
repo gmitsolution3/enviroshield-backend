@@ -50,6 +50,13 @@ router.patch(
   orderController.updateOrderStatus,
 );
 
+router.patch(
+  "/:id/payment-status",
+  authenticate,
+  authorize("admin"),
+  validateRequest(orderValidation.updatePaymentStatusValidationSchema),
+  orderController.updatePaymentStatus,
+);
 
 // Create an order
 router.post(
