@@ -78,6 +78,60 @@ const createOrderValidationSchema = z.object({
   }),
 });
 
+
+const orderIdParamsSchema = z.object({
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid order ID"),
+  }),
+});
+
+const getOrdersQuerySchema = z.object({
+  query: z.object({
+    page: z
+      .string()
+      .optional()
+      .refine(
+        (value) =>
+          value === undefined ||
+          (/^\d+$/.test(value) && Number(value) >= 1),
+        "Page must be a positive integer",
+      ),
+
+    limit: z
+      .string()
+      .optional()
+      .refine(
+        (value) =>
+          value === undefined ||
+          (/^\d+$/.test(value) &&
+            Number(value) >= 1 &&
+            Number(value) <= 100),
+        "Limit must be an integer between 1 and 100",
+      ),
+
+    status: z
+      .enum([
+        "pending",
+        "confirmed",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ])
+      .optional(),
+
+    paymentStatus: z
+      .enum(["pending", "paid", "failed", "refunded"])
+      .optional(),
+
+    orderNumber: z.string().trim().min(1).optional(),
+  }),
+});
+
+
+
 export const orderValidation = {
   createOrderValidationSchema,
+  orderIdParamsSchema,
+  getOrdersQuerySchema,
 };

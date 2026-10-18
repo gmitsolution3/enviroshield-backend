@@ -31,6 +31,16 @@ type TCreateOrderPayload = {
   customerNote?: string;
 };
 
+
+type TOrderQuery = {
+  page?: string;
+  limit?: string;
+  status?: string;
+  paymentStatus?: string;
+  orderNumber?: string;
+};
+
+
 const DELIVERY_FEES: Record<TDeliveryZone, number> = {
   [DELIVERY_ZONE.DHAKA]: 60,
   [DELIVERY_ZONE.OUTSIDE_DHAKA]: 120,
@@ -226,6 +236,101 @@ const createOrder = async (
   }
 };
 
+
+const getOrders = async (
+  query: TOrderQuery,
+  userId?: string,
+) => {
+  const page = Math.max(1, Number(query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+  const skip = (page - 1) * limit;
+
+  const filter: Record<string, unknown> = {};
+
+  // If userId is supplied, only return that customer's orders.
+  if (userId) {
+    filter.userId = userId;
+  }
+
+  if (query.status) {
+    filter.status = query.status;
+  }
+
+  if (query.paymentStatus) {
+    filter.paymentStatus = query.paymentStatus;
+  }
+
+  if (query.orderNumber) {
+    filter.orderNumber = query.orderNumber.trim();
+  }
+
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Order.countDocuments(filter),
+  ]);
+
+  return {
+    data: orders,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+
+const getMyOrders = async (
+  userId: string,
+  query: TOrderQuery,
+) => {
+  if (!userId) {
+    throw new AppError(
+      httpStatus.UNAUTHORIZED,
+      "Authentication required",
+    );
+  }
+
+  return getOrders(query, userId);
+};
+
+const getAllOrders = async (query: TOrderQuery) => {
+  return getOrders(query);
+};
+
+const getMyOrderById = async (
+  userId: string,
+  orderId: string,
+) => {
+  const order = await Order.findOne({
+    _id: orderId,
+    userId,
+  });
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  return order;
+};
+
+const getOrderById = async (orderId: string) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  return order;
+};
+
 export const orderService = {
   createOrder,
+  getMyOrders,
+  getAllOrders,
+  getMyOrderById,
+  getOrderById,
 };

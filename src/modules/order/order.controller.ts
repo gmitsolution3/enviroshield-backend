@@ -34,6 +34,100 @@ const createOrder = catchAsync(
   },
 );
 
+
+const getMyOrders = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      return sendResponse(res, {
+        statusCode: httpStatus.UNAUTHORIZED,
+        success: false,
+        message: "Authentication required",
+        data: null,
+      });
+    }
+
+    const result = await orderService.getMyOrders(req.user.id, {
+      page: req.query.page as string,
+      limit: req.query.limit as string,
+      status: req.query.status as string,
+      paymentStatus: req.query.paymentStatus as string,
+      orderNumber: req.query.orderNumber as string,
+    });
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Your orders retrieved successfully",
+      meta: result.meta,
+      data: result.data,
+    });
+  },
+);
+
+const getAllOrders = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const result = await orderService.getAllOrders({
+      page: req.query.page as string,
+      limit: req.query.limit as string,
+      status: req.query.status as string,
+      paymentStatus: req.query.paymentStatus as string,
+      orderNumber: req.query.orderNumber as string,
+    });
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Orders retrieved successfully",
+      meta: result.meta,
+      data: result.data,
+    });
+  },
+);
+
+const getMyOrderById = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+      return sendResponse(res, {
+        statusCode: httpStatus.UNAUTHORIZED,
+        success: false,
+        message: "Authentication required",
+        data: null,
+      });
+    }
+
+    const order = await orderService.getMyOrderById(
+      req.user.id,
+      req.params.id as string,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Your order retrieved successfully",
+      data: order,
+    });
+  },
+);
+
+const getOrderById = catchAsync(
+  async (req: AuthenticatedRequest, res: Response) => {
+    const order = await orderService.getOrderById(
+      req.params.id as string,
+    );
+
+    sendResponse(res, {
+      statusCode: httpStatus.OK,
+      success: true,
+      message: "Order retrieved successfully",
+      data: order,
+    });
+  },
+);
+
 export const orderController = {
   createOrder,
+  getMyOrders,
+  getAllOrders,
+  getMyOrderById,
+  getOrderById,
 };
