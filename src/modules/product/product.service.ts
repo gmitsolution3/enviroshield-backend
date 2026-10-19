@@ -51,7 +51,11 @@ const createProduct = async (payload: TProduct) => {
     payload.publishedAt = null;
   }
 
-  return Product.create(payload);
+  const product = await Product.create(payload);
+
+  await product.populate("categoryId", "name slug");
+
+  return product;
 };
 
 const buildProductFilter = (query: TProductQuery) => {
@@ -86,17 +90,13 @@ const buildProductFilter = (query: TProductQuery) => {
   }
 
   if (query.inStock !== undefined) {
-    filter.stockQuantity =
-      query.inStock === "true" ? { $gt: 0 } : { $lte: 0 };
+    filter.stockQuantity = query.inStock === "true" ? { $gt: 0 } : { $lte: 0 };
   }
 
   return filter;
 };
 
-const getProducts = async (
-  query: TProductQuery,
-  publicOnly = false,
-) => {
+const getProducts = async (query: TProductQuery, publicOnly = false) => {
   const { page, limit, skip } = calculatePagination(query);
   const filter = buildProductFilter(query);
 
@@ -108,6 +108,7 @@ const getProducts = async (
   const sortDirection = query.sortOrder === "asc" ? 1 : -1;
 
   let productQuery = Product.find(filter)
+    .populate("categoryId", "name slug")
     .sort({ [sortField]: sortDirection })
     .skip(skip)
     .limit(limit);
@@ -141,7 +142,10 @@ const getPublishedProducts = async (query: TProductQuery) => {
 };
 
 const getProductById = async (productId: string) => {
-  const product = await Product.findById(productId);
+  const product = await Product.findById(productId).populate(
+    "categoryId",
+    "name slug",
+  );
 
   if (!product) {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
@@ -154,22 +158,18 @@ const getPublishedProductBySlug = async (slug: string) => {
   const product = await Product.findOne({
     slug,
     status: PRODUCT_STATUS.PUBLISHED,
-  }).select("-costPrice");
+  })
+    .select("-costPrice")
+    .populate("categoryId", "name slug");
 
   if (!product) {
-    throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Published product not found",
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "Published product not found");
   }
 
   return product;
 };
 
-const updateProduct = async (
-  productId: string,
-  payload: Partial<TProduct>,
-) => {
+const updateProduct = async (productId: string, payload: Partial<TProduct>) => {
   const existingProduct = await Product.findById(productId);
 
   if (!existingProduct) {
@@ -225,22 +225,17 @@ const updateProduct = async (
     payload.publishedAt = null;
   }
 
-  const updatedProduct = await Product.findByIdAndUpdate(
-    productId,
-    payload,
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
+  const updatedProduct = await Product.findByIdAndUpdate(productId, payload, {
+    new: true,
+    runValidators: true,
+  });
 
   if (!updatedProduct) {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
   const crossedLowStockThreshold =
-    existingProduct.stockQuantity >
-      existingProduct.lowStockThreshold &&
+    existingProduct.stockQuantity > existingProduct.lowStockThreshold &&
     updatedProduct.stockQuantity <= updatedProduct.lowStockThreshold;
 
   if (crossedLowStockThreshold) {
