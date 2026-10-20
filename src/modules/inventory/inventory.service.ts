@@ -242,6 +242,7 @@ const getMovementHistory = async (
 
   const [movements, total] = await Promise.all([
     InventoryMovement.find(filter)
+      .populate("productId")
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(normalizedLimit)
@@ -427,6 +428,7 @@ const getGlobalMovementHistory = async (
 
   const [movements, total] = await Promise.all([
     InventoryMovement.find(filter)
+      .populate("productId")
       .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
