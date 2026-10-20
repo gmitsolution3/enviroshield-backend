@@ -1,6 +1,5 @@
-
-import httpStatus from "http-status";
 import { Response } from "express";
+import httpStatus from "http-status";
 import { AuthenticatedRequest } from "../../middlewares/auth.middleware";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
@@ -33,7 +32,6 @@ const createOrder = catchAsync(
     });
   },
 );
-
 
 const getMyOrders = catchAsync(
   async (req: AuthenticatedRequest, res: Response) => {
@@ -72,6 +70,7 @@ const getAllOrders = catchAsync(
       status: req.query.status as string,
       paymentStatus: req.query.paymentStatus as string,
       orderNumber: req.query.orderNumber as string,
+      search: req.query.search as string,
     });
 
     sendResponse(res, {
@@ -154,7 +153,6 @@ const updatePaymentStatus = catchAsync(
     });
   },
 );
-
 
 const cancelMyOrder = catchAsync(
   async (req: AuthenticatedRequest, res: Response) => {

@@ -153,6 +153,8 @@ const getOrdersQuerySchema = z.object({
       .optional(),
 
     orderNumber: z.string().trim().min(1).optional(),
+
+    search: z.string().trim().min(1).max(100).optional(),
   }),
 });
 

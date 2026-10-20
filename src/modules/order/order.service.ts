@@ -4,6 +4,7 @@ import mongoose, { Types } from "mongoose";
 import { AppError } from "../../utils/AppError";
 import { INVENTORY_MOVEMENT_TYPE } from "../inventory/inventory.constant";
 import InventoryMovement from "../inventory/inventory.model";
+import { notifyLowStockAdmins } from "../inventory/inventory.notification";
 import { PRODUCT_STATUS } from "../product/product.constant";
 import Product from "../product/product.model";
 import {
@@ -19,7 +20,6 @@ import type {
   TOrder,
   TOrderStatus,
 } from "./order.types";
-import { notifyLowStockAdmins } from "../inventory/inventory.notification";
 
 type TCreateOrderPayload = {
   items: {
@@ -47,6 +47,7 @@ type TOrderQuery = {
   status?: string;
   paymentStatus?: string;
   orderNumber?: string;
+  search?: string;
 };
 
 const DELIVERY_FEES: Record<TDeliveryZone, number> = {
@@ -327,6 +328,29 @@ const getOrders = async (query: TOrderQuery, userId?: string) => {
 
   if (query.orderNumber) {
     filter.orderNumber = query.orderNumber.trim();
+  }
+
+  if (query.search?.trim()) {
+    const searchTerm = query.search
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const searchRegex = new RegExp(searchTerm, "i");
+
+    const searchConditions: Record<string, unknown>[] = [
+      { orderNumber: searchRegex },
+      { "customer.name": searchRegex },
+      { "customer.email": searchRegex },
+    ];
+
+    // Also allow searching by MongoDB order ID.
+    if (Types.ObjectId.isValid(query.search.trim())) {
+      searchConditions.push({
+        _id: new Types.ObjectId(query.search.trim()),
+      });
+    }
+
+    filter.$or = searchConditions;
   }
 
   const [orders, total] = await Promise.all([
