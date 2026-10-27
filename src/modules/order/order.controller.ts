@@ -50,6 +50,7 @@ const getMyOrders = catchAsync(
       status: req.query.status as string,
       paymentStatus: req.query.paymentStatus as string,
       orderNumber: req.query.orderNumber as string,
+      search: req.query.search as string,
     });
 
     sendResponse(res, {
