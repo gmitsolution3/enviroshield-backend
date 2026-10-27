@@ -39,7 +39,10 @@ const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     status = "fail";
     message = "Duplicate field value";
   } else if (err instanceof Error) {
-    message = err.message;
+    message =
+      process.env.NODE_ENV === "production"
+        ? "Something went wrong!"
+        : err.message;
   }
 
   res.status(statusCode).json({
