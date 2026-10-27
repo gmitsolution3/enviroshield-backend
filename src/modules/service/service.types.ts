@@ -34,6 +34,7 @@ export type TServiceSEO = {
 export type TService = {
   name: string;
   slug: string;
+  price: number;
 
   isFeatured: boolean;
 

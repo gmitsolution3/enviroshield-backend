@@ -127,6 +127,12 @@ const serviceSchema = new Schema<TService>(
       trim: true,
     },
 
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
     isFeatured: {
       type: Boolean,
       default: false,
