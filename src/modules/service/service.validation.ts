@@ -37,7 +37,7 @@ const createServiceValidationSchema = z.object({
 
     slug: z.string().min(1, "Service slug is required"),
 
-    price: z.number().finite().nonnegative(),
+    price: z.coerce.number().finite().nonnegative().default(0),
 
     isFeatured: z.boolean().optional(),
 
@@ -71,7 +71,7 @@ const updateServiceValidationSchema = z.object({
 
     slug: z.string().min(1).optional(),
 
-    price: z.number().finite().nonnegative().optional(),
+    price: z.coerce.number().finite().nonnegative().optional(),
 
     isFeatured: z.boolean().optional(),
 
