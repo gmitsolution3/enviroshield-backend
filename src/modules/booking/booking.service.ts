@@ -8,6 +8,7 @@ import { AppError } from "../../utils/AppError";
 import Service from "../service/service.model";
 import { BOOKING_STATUS } from "./booking.constant";
 import Booking from "./booking.model";
+import { bookingNotification } from "./booking.notification";
 import type {
   TBooking,
   TBookingQuery,
@@ -58,7 +59,7 @@ const createBooking = async (
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      return await Booking.create({
+      const createdBooking = await Booking.create({
         bookingNumber: generateBookingNumber(),
         userId,
         serviceId: service._id,
@@ -67,6 +68,17 @@ const createBooking = async (
         finalPrice: service.price,
         status: BOOKING_STATUS.PENDING,
       });
+
+      try {
+        await bookingNotification.notifyBookingPlaced(createdBooking);
+      } catch (error) {
+        console.error(
+          `Failed to send booking confirmation email for ${createdBooking.bookingNumber}:`,
+          error,
+        );
+      }
+
+      return createdBooking;
     } catch (error) {
       const duplicateError = error as {
         code?: number;
@@ -250,13 +262,37 @@ const updateBookingStatus = async (
   bookingId: string,
   status: TBookingStatus,
 ) => {
-  const booking = await Booking.findByIdAndUpdate(
-    bookingId,
-    { $set: { status } },
-    { new: true, runValidators: true },
-  );
+  const booking = await Booking.findById(bookingId);
   if (!booking)
     throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+
+  const previousStatus = booking.status;
+  if (previousStatus === status) {
+    return addPopulatedReferences(booking);
+  }
+
+  booking.status = status;
+  await booking.save();
+
+  try {
+    if (status === BOOKING_STATUS.CANCELLED) {
+      await bookingNotification.notifyBookingCancelled(
+        booking,
+        previousStatus,
+      );
+    } else {
+      await bookingNotification.notifyBookingStatusUpdated(
+        booking,
+        previousStatus,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `Failed to send booking status update email for ${booking.bookingNumber}:`,
+      error,
+    );
+  }
+
   return addPopulatedReferences(booking);
 };
 
@@ -320,27 +356,23 @@ const cancelBooking = async (
   };
   if (actor.role === "user") filter.userId = actor.id;
 
-  const booking = await Booking.findOneAndUpdate(
-    filter,
-    { $set: { status: BOOKING_STATUS.CANCELLED } },
-    { new: true, runValidators: true },
-  );
+  const existingBooking = await Booking.findOne(filter);
 
-  if (!booking) {
-    const existingBooking = await Booking.findById(bookingId);
-    if (!existingBooking) {
+  if (!existingBooking) {
+    const bookingInDb = await Booking.findById(bookingId);
+    if (!bookingInDb) {
       throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
     }
     if (
       actor.role === "user" &&
-      existingBooking.userId !== actor.id
+      bookingInDb.userId !== actor.id
     ) {
       throw new AppError(
         httpStatus.FORBIDDEN,
         "You cannot cancel this booking",
       );
     }
-    if (existingBooking.status === BOOKING_STATUS.CANCELLED) {
+    if (bookingInDb.status === BOOKING_STATUS.CANCELLED) {
       throw new AppError(
         httpStatus.CONFLICT,
         "Booking has already been cancelled",
@@ -354,7 +386,23 @@ const cancelBooking = async (
     );
   }
 
-  return addPopulatedReferences(booking);
+  const previousStatus = existingBooking.status;
+  existingBooking.status = BOOKING_STATUS.CANCELLED;
+  await existingBooking.save();
+
+  try {
+    await bookingNotification.notifyBookingCancelled(
+      existingBooking,
+      previousStatus,
+    );
+  } catch (error) {
+    console.error(
+      `Failed to send cancellation email for ${existingBooking.bookingNumber}:`,
+      error,
+    );
+  }
+
+  return addPopulatedReferences(existingBooking);
 };
 
 export const bookingService = {
