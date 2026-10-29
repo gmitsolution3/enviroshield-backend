@@ -1,0 +1,19 @@
+export const ANALYTICS_PERIOD = {
+  SEVEN_DAYS: "7d",
+  THIRTY_DAYS: "30d",
+  NINETY_DAYS: "90d",
+  TWELVE_MONTHS: "12m",
+} as const;
+
+export type TAnalyticsPeriod =
+  (typeof ANALYTICS_PERIOD)[keyof typeof ANALYTICS_PERIOD];
+
+export const VALID_ANALYTICS_PERIODS: [TAnalyticsPeriod, ...TAnalyticsPeriod[]] = [
+  ANALYTICS_PERIOD.SEVEN_DAYS,
+  ANALYTICS_PERIOD.THIRTY_DAYS,
+  ANALYTICS_PERIOD.NINETY_DAYS,
+  ANALYTICS_PERIOD.TWELVE_MONTHS,
+];
+
+export const DEFAULT_ANALYTICS_PERIOD: TAnalyticsPeriod =
+  ANALYTICS_PERIOD.THIRTY_DAYS;

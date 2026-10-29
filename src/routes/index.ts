@@ -1,4 +1,5 @@
 import { Router } from "express";
+import analyticsRoutes from "../modules/analytics/analytics.route";
 import blogRoutes from "../modules/blog/blog.route";
 import bookingRoutes from "../modules/booking/booking.route";
 import cartRoutes from "../modules/cart/cart.route";
@@ -21,6 +22,10 @@ const moduleRoutes: {
   {
     path: "/health",
     route: healthRoutes,
+  },
+  {
+    path: "/analytics",
+    route: analyticsRoutes,
   },
   {
     path: "/blog",
