@@ -343,3 +343,4 @@ export interface TUserActivityData {
   };
   activities: TActivityItem[];
 }
+

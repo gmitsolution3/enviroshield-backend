@@ -10,3 +10,4 @@ const getAnalyticsQuerySchema = z.object({
 export const analyticsValidation = {
   getAnalyticsQuerySchema,
 };
+
