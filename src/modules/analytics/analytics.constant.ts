@@ -17,3 +17,4 @@ export const VALID_ANALYTICS_PERIODS: [TAnalyticsPeriod, ...TAnalyticsPeriod[]] 
 
 export const DEFAULT_ANALYTICS_PERIOD: TAnalyticsPeriod =
   ANALYTICS_PERIOD.THIRTY_DAYS;
+
