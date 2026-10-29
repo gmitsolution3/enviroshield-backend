@@ -11,6 +11,7 @@ import orderRoutes from "../modules/order/order.route";
 import productRoutes from "../modules/product/product.route";
 import projectRoutes from "../modules/project/project.route";
 import serviceRoutes from "../modules/service/service.route";
+import settingsRoutes from "../modules/settings/settings.route";
 import testimonialRoutes from "../modules/testimonial/testimonial.route";
 
 const router = Router();
@@ -68,6 +69,7 @@ const moduleRoutes: {
     route: bookingRoutes,
   },
   { path: "/contact", route: contactRoutes },
+  { path: "/settings", route: settingsRoutes },
 ];
 
 moduleRoutes.forEach((route) => {
