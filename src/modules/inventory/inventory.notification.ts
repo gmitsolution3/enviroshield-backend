@@ -33,7 +33,7 @@ export const notifyLowStockAdmins = async (
   const admins = await db
     .collection("user")
     .find(
-      { role: "admin" },
+      { role: "admin", banned: { $ne: true } },
       {
         projection: {
           email: 1,

@@ -35,6 +35,7 @@ export type TOrderItem = {
 };
 
 export type TOrder = {
+  _id?: Types.ObjectId;
   orderNumber: string;
   userId: string;
   items: TOrderItem[];

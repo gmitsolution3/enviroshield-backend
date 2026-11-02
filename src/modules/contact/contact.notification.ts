@@ -23,7 +23,7 @@ export const notifyNewContactInquiry = async (
     const db = client.db(process.env.MONGODB_DB);
     const admins = await db
       .collection("user")
-      .find({ role: "admin" }, { projection: { email: 1, _id: 0 } })
+      .find({ role: "admin", banned: { $ne: true } }, { projection: { email: 1, _id: 0 } })
       .toArray();
 
     const adminEmails = admins

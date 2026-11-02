@@ -386,6 +386,10 @@ const updateBookingManagement = async (
   if (!booking)
     throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
 
+  const previousDate = booking.siteVisitDate
+    ? new Date(booking.siteVisitDate).toISOString()
+    : null;
+
   if (changes.isSiteVisit !== undefined) {
     booking.isSiteVisit = changes.isSiteVisit;
     if (!changes.isSiteVisit) booking.siteVisitDate = undefined;
@@ -409,28 +413,57 @@ const updateBookingManagement = async (
   if (changes.adminNotes !== undefined)
     booking.adminNotes = changes.adminNotes;
 
-  const previousDate = booking.siteVisitDate;
   await booking.save();
 
   if (changes.siteVisitDate !== undefined && changes.isSiteVisit !== false) {
+    const isRescheduled = Boolean(
+      previousDate &&
+        previousDate !== new Date(changes.siteVisitDate).toISOString(),
+    );
+
     void notificationService
       .createNotification({
         recipient: booking.userId,
         type: NOTIFICATION_TYPE.SITE_VISIT_SCHEDULED,
-        title: "Site Visit Scheduled",
-        message: `A site visit for booking ${booking.bookingNumber} has been scheduled for ${new Date(changes.siteVisitDate).toLocaleDateString()}.`,
+        title: isRescheduled
+          ? "Site Visit Rescheduled"
+          : "Site Visit Scheduled",
+        message: isRescheduled
+          ? `A site visit for booking ${booking.bookingNumber} has been rescheduled to ${new Date(changes.siteVisitDate).toLocaleDateString()}.`
+          : `A site visit for booking ${booking.bookingNumber} has been scheduled for ${new Date(changes.siteVisitDate).toLocaleDateString()}.`,
         entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
         entityId: booking._id.toString(),
         actionUrl: "/dashboard/my-services",
         metadata: {
           bookingNumber: booking.bookingNumber,
           siteVisitDate: changes.siteVisitDate,
+          previousDate,
+          isRescheduled,
         },
       })
       .catch((err) =>
         console.error("Failed to notify customer of site visit date:", err),
       );
+  } else if (previousDate && changes.isSiteVisit === false) {
+    void notificationService
+      .createNotification({
+        recipient: booking.userId,
+        type: NOTIFICATION_TYPE.SITE_VISIT_SCHEDULED,
+        title: "Site Visit Cancelled",
+        message: `The scheduled site visit for booking ${booking.bookingNumber} has been cancelled.`,
+        entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+        entityId: booking._id.toString(),
+        actionUrl: "/dashboard/my-services",
+        metadata: {
+          bookingNumber: booking.bookingNumber,
+          previousDate,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify customer of site visit cancellation:", err),
+      );
   }
+
   return addPopulatedReferences(booking);
 };
 

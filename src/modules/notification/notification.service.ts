@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { client } from "../../config/mongodb";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
@@ -12,10 +12,16 @@ import {
 
 const getAdminUsers = async (): Promise<{ id: string; email?: string }[]> => {
   try {
-    const db = client.db(process.env.MONGODB_DB);
-    const admins = await db
-      .collection("user")
-      .find({ role: "admin" }, { projection: { id: 1, _id: 1, email: 1 } })
+    const collection =
+      mongoose.connection.readyState === 1 && mongoose.connection.db
+        ? mongoose.connection.collection("user")
+        : client.db(process.env.MONGODB_DB).collection("user");
+
+    const admins = await collection
+      .find(
+        { role: "admin", banned: { $ne: true } },
+        { projection: { id: 1, _id: 1, email: 1 } },
+      )
       .toArray();
 
     return admins.map((adm) => ({

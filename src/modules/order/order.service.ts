@@ -189,7 +189,10 @@ const createOrder = async (
           previousStock > product.lowStockThreshold &&
           resultingStock <= product.lowStockThreshold;
 
-        if (crossedLowStockThreshold) {
+        const crossedOutOfStockThreshold =
+          previousStock > 0 && resultingStock <= 0;
+
+        if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
           lowStockAlerts.push({
             name: product.name,
             sku: product.sku,
@@ -308,6 +311,26 @@ const createOrder = async (
         error,
       );
     }
+
+    // In-app notification to all administrators
+    void notificationService
+      .notifyAdmins({
+        type: NOTIFICATION_TYPE.ORDER_CREATED,
+        title: "New Order Placed",
+        message: `Order ${order.orderNumber} placed by ${order.customer.name} (BDT ${order.totalAmount}).`,
+        entityType: NOTIFICATION_ENTITY_TYPE.ORDER,
+        entityId: order._id.toString(),
+        actionUrl: "/dashboard/ecommerce/orders",
+        metadata: {
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          customerName: order.customer.name,
+          userId: order.userId,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify admins of order placed:", err),
+      );
 
     return order;
   } finally {
@@ -571,6 +594,43 @@ const cancelOrder = async (
       );
     }
 
+    if (actor.role === "user") {
+      void notificationService
+        .notifyAdmins({
+          type: NOTIFICATION_TYPE.ORDER_CANCELLED,
+          title: "Order Cancelled by Customer",
+          message: `Customer cancelled order ${orderToNotify.orderNumber}.`,
+          entityType: NOTIFICATION_ENTITY_TYPE.ORDER,
+          entityId: orderId,
+          actionUrl: "/dashboard/ecommerce/orders",
+          metadata: {
+            orderNumber: orderToNotify.orderNumber,
+            userId: orderToNotify.userId,
+          },
+        })
+        .catch((err) =>
+          console.error("Failed to notify admins of customer order cancellation:", err),
+        );
+    } else {
+      void notificationService
+        .createNotification({
+          recipient: orderToNotify.userId,
+          type: NOTIFICATION_TYPE.ORDER_CANCELLED,
+          title: `Order Cancelled: ${orderToNotify.orderNumber}`,
+          message: `Your order ${orderToNotify.orderNumber} has been cancelled.`,
+          entityType: NOTIFICATION_ENTITY_TYPE.ORDER,
+          entityId: orderId,
+          actionUrl: "/dashboard/my-orders",
+          metadata: {
+            orderNumber: orderToNotify.orderNumber,
+            status: ORDER_STATUS.CANCELLED,
+          },
+        })
+        .catch((err) =>
+          console.error("Failed to notify customer of order cancellation:", err),
+        );
+    }
+
     return cancelledOrder;
   } finally {
     await session.endSession();
@@ -643,6 +703,26 @@ const updateOrderStatus = async (
       error,
     );
   }
+
+  // Notify customer of order status transition
+  void notificationService
+    .createNotification({
+      recipient: updatedOrder.userId,
+      type: NOTIFICATION_TYPE.ORDER_STATUS_CHANGED,
+      title: `Order Status: ${newStatus.toUpperCase()}`,
+      message: `Your order ${updatedOrder.orderNumber} is now "${newStatus}".`,
+      entityType: NOTIFICATION_ENTITY_TYPE.ORDER,
+      entityId: updatedOrder._id.toString(),
+      actionUrl: "/dashboard/my-orders",
+      metadata: {
+        orderNumber: updatedOrder.orderNumber,
+        status: newStatus,
+        previousStatus,
+      },
+    })
+    .catch((err) =>
+      console.error("Failed to notify customer of order status update:", err),
+    );
 
   return updatedOrder;
 };
@@ -757,6 +837,25 @@ const updatePaymentStatus = async (
         error,
       );
     }
+
+    // In-app notification to customer
+    void notificationService
+      .createNotification({
+        recipient: updatedOrder.userId,
+        type: NOTIFICATION_TYPE.ORDER_PAYMENT_CONFIRMED,
+        title: `Payment Confirmed: ${updatedOrder.orderNumber}`,
+        message: `Payment for order ${updatedOrder.orderNumber} (BDT ${updatedOrder.totalAmount}) has been confirmed.`,
+        entityType: NOTIFICATION_ENTITY_TYPE.ORDER,
+        entityId: updatedOrder._id.toString(),
+        actionUrl: "/dashboard/my-orders",
+        metadata: {
+          orderNumber: updatedOrder.orderNumber,
+          paymentStatus: newPaymentStatus,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify customer of payment confirmation:", err),
+      );
   }
 
   return updatedOrder;

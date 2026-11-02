@@ -193,7 +193,11 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
       result.movement.resultingStock <=
         result.product.lowStockThreshold;
 
-    if (crossedLowStockThreshold) {
+    const crossedOutOfStockThreshold =
+      result.movement.previousStock > 0 &&
+      result.movement.resultingStock <= 0;
+
+    if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
       try {
         await notifyLowStockAdmins({
           name: result.product.name,
