@@ -6,7 +6,11 @@ import { client } from "../../config/mongodb";
 import { TPaginationMeta } from "../../types/common";
 import { AppError } from "../../utils/AppError";
 import Service from "../service/service.model";
-import { BOOKING_STATUS } from "./booking.constant";
+import {
+  BOOKING_STATUS,
+  getAllowedBookingStatusTransitions,
+  isAllowedBookingStatusTransition,
+} from "./booking.constant";
 import Booking from "./booking.model";
 import { bookingNotification } from "./booking.notification";
 import type {
@@ -271,29 +275,56 @@ const updateBookingStatus = async (
     return addPopulatedReferences(booking);
   }
 
-  booking.status = status;
-  await booking.save();
+  if (!isAllowedBookingStatusTransition(previousStatus, status)) {
+    const allowed = getAllowedBookingStatusTransitions(previousStatus);
+    const allowedText = allowed.length
+      ? allowed.join(", ")
+      : "none (terminal state)";
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot transition booking from "${previousStatus}" to "${status}". Allowed next statuses: ${allowedText}.`,
+    );
+  }
+
+  const updatedBooking = await Booking.findOneAndUpdate(
+    { _id: bookingId, status: previousStatus },
+    { $set: { status } },
+    { new: true, runValidators: true },
+  );
+
+  if (!updatedBooking) {
+    const latest = await Booking.findById(bookingId);
+    if (!latest)
+      throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+    if (latest.status === status) {
+      return addPopulatedReferences(latest);
+    }
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Booking status was modified concurrently. Please refresh and try again.",
+    );
+  }
 
   try {
     if (status === BOOKING_STATUS.CANCELLED) {
       await bookingNotification.notifyBookingCancelled(
-        booking,
+        updatedBooking,
         previousStatus,
       );
     } else {
       await bookingNotification.notifyBookingStatusUpdated(
-        booking,
+        updatedBooking,
         previousStatus,
       );
     }
   } catch (error) {
     console.error(
-      `Failed to send booking status update email for ${booking.bookingNumber}:`,
+      `Failed to send booking status update email for ${updatedBooking.bookingNumber}:`,
       error,
     );
   }
 
-  return addPopulatedReferences(booking);
+  return addPopulatedReferences(updatedBooking);
 };
 
 type TBookingManagementUpdate = {

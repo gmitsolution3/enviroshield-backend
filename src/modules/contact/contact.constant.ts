@@ -8,6 +8,49 @@ export const CONTACT_STATUS = {
   LOST: "lost",
 } as const;
 
+export type TContactStatus =
+  (typeof CONTACT_STATUS)[keyof typeof CONTACT_STATUS];
+
+export const CONTACT_STATUS_TRANSITIONS: Record<
+  TContactStatus,
+  readonly TContactStatus[]
+> = {
+  [CONTACT_STATUS.NEW]: [CONTACT_STATUS.CONTACTED],
+  [CONTACT_STATUS.CONTACTED]: [
+    CONTACT_STATUS.QUALIFIED,
+    CONTACT_STATUS.LOST,
+  ],
+  [CONTACT_STATUS.QUALIFIED]: [
+    CONTACT_STATUS.SITE_VISIT,
+    CONTACT_STATUS.PROPOSAL_SENT,
+    CONTACT_STATUS.LOST,
+  ],
+  [CONTACT_STATUS.SITE_VISIT]: [
+    CONTACT_STATUS.PROPOSAL_SENT,
+    CONTACT_STATUS.LOST,
+  ],
+  [CONTACT_STATUS.PROPOSAL_SENT]: [
+    CONTACT_STATUS.WON,
+    CONTACT_STATUS.LOST,
+  ],
+  [CONTACT_STATUS.WON]: [],
+  [CONTACT_STATUS.LOST]: [],
+} as const;
+
+export const getAllowedContactStatusTransitions = (
+  currentStatus: TContactStatus,
+): readonly TContactStatus[] => {
+  return CONTACT_STATUS_TRANSITIONS[currentStatus] ?? [];
+};
+
+export const isAllowedContactStatusTransition = (
+  currentStatus: TContactStatus,
+  nextStatus: TContactStatus,
+): boolean => {
+  const allowed = getAllowedContactStatusTransitions(currentStatus);
+  return (allowed as readonly string[]).includes(nextStatus);
+};
+
 export const CONTACT_SOURCE = {
   WEBSITE: "website",
   PHONE: "phone",

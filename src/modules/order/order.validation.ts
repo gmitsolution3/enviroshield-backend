@@ -108,7 +108,7 @@ const updatePaymentStatusValidationSchema = z.object({
   }),
   body: z.object({
     // For COD, this endpoint is used to confirm collected payment.
-    paymentStatus: z.enum(["paid"]),
+    paymentStatus: z.enum(["pending", "paid", "failed", "refunded"]),
   }),
 });
 

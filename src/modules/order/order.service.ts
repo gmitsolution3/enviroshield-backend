@@ -12,6 +12,12 @@ import {
   ORDER_STATUS,
   PAYMENT_METHOD,
   PAYMENT_STATUS,
+  ORDER_STATUS_TRANSITIONS,
+  PAYMENT_STATUS_TRANSITIONS,
+  getAllowedOrderStatusTransitions,
+  getAllowedPaymentStatusTransitions,
+  isAllowedOrderStatusTransition,
+  isAllowedPaymentStatusTransition,
 } from "./order.constant";
 import Order from "./order.model";
 import { orderNotification } from "./order.notification";
@@ -19,6 +25,7 @@ import type {
   TDeliveryZone,
   TOrder,
   TOrderStatus,
+  TPaymentStatus,
 } from "./order.types";
 
 type TCreateOrderPayload = {
@@ -410,131 +417,6 @@ const getOrderById = async (orderId: string) => {
   return order;
 };
 
-const updateOrderStatus = async (
-  orderId: string,
-  newStatus: TOrderStatus,
-) => {
-  const order = await Order.findById(orderId);
-
-  if (!order) {
-    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
-  }
-
-  const previousStatus = order.status;
-
-  // Avoid unnecessary database writes and duplicate emails.
-  if (previousStatus === newStatus) {
-    return order;
-  }
-
-  order.status = newStatus;
-  await order.save();
-
-  // The status is saved, so email failure must not undo the update.
-  try {
-    await orderNotification.notifyOrderStatusUpdated(
-      order,
-      previousStatus,
-    );
-  } catch (error) {
-    console.error(
-      `Failed to send status update email for ${order.orderNumber}:`,
-      error,
-    );
-  }
-
-  return order;
-};
-
-const updatePaymentStatus = async (orderId: string) => {
-  const order = await Order.findById(orderId);
-
-  if (!order) {
-    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
-  }
-
-  if (order.paymentMethod !== PAYMENT_METHOD.COD) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Manual payment confirmation is only available for COD orders",
-    );
-  }
-
-  if (order.status === ORDER_STATUS.CANCELLED) {
-    throw new AppError(
-      httpStatus.CONFLICT,
-      "Payment cannot be confirmed for a cancelled order",
-    );
-  }
-
-  // Already paid: return without sending another email.
-  if (order.paymentStatus === PAYMENT_STATUS.PAID) {
-    return order;
-  }
-
-  // Atomically confirm payment only if it is still pending
-  // and the order has not been cancelled.
-  const updatedOrder = await Order.findOneAndUpdate(
-    {
-      _id: orderId,
-      paymentMethod: PAYMENT_METHOD.COD,
-      paymentStatus: PAYMENT_STATUS.PENDING,
-      status: { $ne: ORDER_STATUS.CANCELLED },
-    },
-    {
-      $set: { paymentStatus: PAYMENT_STATUS.PAID },
-    },
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
-
-  if (!updatedOrder) {
-    // Another request may have confirmed payment first.
-    const latestOrder = await Order.findById(orderId);
-
-    if (!latestOrder) {
-      throw new AppError(httpStatus.NOT_FOUND, "Order not found");
-    }
-
-    if (latestOrder.paymentStatus === PAYMENT_STATUS.PAID) {
-      return latestOrder;
-    }
-
-    if (latestOrder.paymentMethod !== PAYMENT_METHOD.COD) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "Manual payment confirmation is only available for COD orders",
-      );
-    }
-
-    if (latestOrder.status === ORDER_STATUS.CANCELLED) {
-      throw new AppError(
-        httpStatus.CONFLICT,
-        "Payment cannot be confirmed for a cancelled order",
-      );
-    }
-
-    throw new AppError(
-      httpStatus.CONFLICT,
-      "Payment status changed. Please refresh the order and try again.",
-    );
-  }
-
-  // Payment is already saved. Email failure must not undo it.
-  try {
-    await orderNotification.notifyPaymentConfirmed(updatedOrder);
-  } catch (error) {
-    console.error(
-      `Failed to send payment confirmation email for ${updatedOrder.orderNumber}:`,
-      error,
-    );
-  }
-
-  return updatedOrder;
-};
-
 const cancelOrder = async (
   orderId: string,
   actor: { id: string; role: "user" | "admin" },
@@ -691,6 +573,191 @@ const cancelOrder = async (
   } finally {
     await session.endSession();
   }
+};
+
+const updateOrderStatus = async (
+  orderId: string,
+  newStatus: TOrderStatus,
+) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  const previousStatus = order.status;
+
+  // Avoid unnecessary database writes and duplicate emails.
+  if (previousStatus === newStatus) {
+    return order;
+  }
+
+  if (!isAllowedOrderStatusTransition(previousStatus, newStatus)) {
+    const allowed = getAllowedOrderStatusTransitions(previousStatus);
+    const allowedText = allowed.length
+      ? allowed.join(", ")
+      : "none (terminal state)";
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot transition order from "${previousStatus}" to "${newStatus}". Allowed next statuses: ${allowedText}.`,
+    );
+  }
+
+  // If transitioning to cancelled, delegate to cancelOrder to safely restore inventory
+  if (newStatus === ORDER_STATUS.CANCELLED) {
+    return cancelOrder(
+      orderId,
+      { id: "admin", role: "admin" },
+      "Cancelled by administrator via status update",
+    );
+  }
+
+  const updatedOrder = await Order.findOneAndUpdate(
+    { _id: orderId, status: previousStatus },
+    { $set: { status: newStatus } },
+    { new: true, runValidators: true },
+  );
+
+  if (!updatedOrder) {
+    const latest = await Order.findById(orderId);
+    if (!latest)
+      throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+    if (latest.status === newStatus) return latest;
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Order status was modified concurrently. Please refresh and try again.",
+    );
+  }
+
+  // The status is saved, so email failure must not undo the update.
+  try {
+    await orderNotification.notifyOrderStatusUpdated(
+      updatedOrder,
+      previousStatus,
+    );
+  } catch (error) {
+    console.error(
+      `Failed to send status update email for ${updatedOrder.orderNumber}:`,
+      error,
+    );
+  }
+
+  return updatedOrder;
+};
+
+const updatePaymentStatus = async (
+  orderId: string,
+  requestedPaymentStatus?: TPaymentStatus,
+) => {
+  const order = await Order.findById(orderId);
+
+  if (!order) {
+    throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+  }
+
+  const newPaymentStatus = requestedPaymentStatus ?? PAYMENT_STATUS.PAID;
+  const previousPaymentStatus = order.paymentStatus;
+
+  // Already in the requested payment status: return idempotently
+  if (previousPaymentStatus === newPaymentStatus) {
+    return order;
+  }
+
+  if (!isAllowedPaymentStatusTransition(previousPaymentStatus, newPaymentStatus)) {
+    const allowed = getAllowedPaymentStatusTransitions(previousPaymentStatus);
+    const allowedText = allowed.length
+      ? allowed.join(", ")
+      : "none (terminal state)";
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot transition payment status from "${previousPaymentStatus}" to "${newPaymentStatus}". Allowed next statuses: ${allowedText}.`,
+    );
+  }
+
+  if (order.paymentMethod !== PAYMENT_METHOD.COD) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Manual payment status update is only available for COD orders",
+    );
+  }
+
+  if (
+    newPaymentStatus === PAYMENT_STATUS.PAID &&
+    order.status === ORDER_STATUS.CANCELLED
+  ) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Payment cannot be confirmed for a cancelled order",
+    );
+  }
+
+  const filter: Record<string, unknown> = {
+    _id: orderId,
+    paymentMethod: PAYMENT_METHOD.COD,
+    paymentStatus: previousPaymentStatus,
+  };
+
+  if (newPaymentStatus === PAYMENT_STATUS.PAID) {
+    filter.status = { $ne: ORDER_STATUS.CANCELLED };
+  }
+
+  const updatedOrder = await Order.findOneAndUpdate(
+    filter,
+    {
+      $set: { paymentStatus: newPaymentStatus },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!updatedOrder) {
+    const latestOrder = await Order.findById(orderId);
+
+    if (!latestOrder) {
+      throw new AppError(httpStatus.NOT_FOUND, "Order not found");
+    }
+
+    if (latestOrder.paymentStatus === newPaymentStatus) {
+      return latestOrder;
+    }
+
+    if (latestOrder.paymentMethod !== PAYMENT_METHOD.COD) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Manual payment status update is only available for COD orders",
+      );
+    }
+
+    if (
+      newPaymentStatus === PAYMENT_STATUS.PAID &&
+      latestOrder.status === ORDER_STATUS.CANCELLED
+    ) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        "Payment cannot be confirmed for a cancelled order",
+      );
+    }
+
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Payment status changed concurrently. Please refresh the order and try again.",
+    );
+  }
+
+  if (newPaymentStatus === PAYMENT_STATUS.PAID) {
+    try {
+      await orderNotification.notifyPaymentConfirmed(updatedOrder);
+    } catch (error) {
+      console.error(
+        `Failed to send payment confirmation email for ${updatedOrder.orderNumber}:`,
+        error,
+      );
+    }
+  }
+
+  return updatedOrder;
 };
 
 export const orderService = {

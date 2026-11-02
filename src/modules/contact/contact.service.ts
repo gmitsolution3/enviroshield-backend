@@ -2,7 +2,12 @@ import httpStatus from "http-status";
 import { TPaginationOptions } from "../../types/common";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
-import { CONTACT_SOURCE, CONTACT_STATUS } from "./contact.constant";
+import {
+  CONTACT_SOURCE,
+  CONTACT_STATUS,
+  getAllowedContactStatusTransitions,
+  isAllowedContactStatusTransition,
+} from "./contact.constant";
 import Contact from "./contact.model";
 import { TContact } from "./contact.types";
 
@@ -82,10 +87,54 @@ const updateContact = async (
     throw new AppError(httpStatus.NOT_FOUND, "Contact not found");
   }
 
-  const result = await Contact.findByIdAndUpdate(contactId, payload, {
+  if (
+    payload.status !== undefined &&
+    payload.status !== existingContact.status
+  ) {
+    if (
+      !isAllowedContactStatusTransition(
+        existingContact.status,
+        payload.status,
+      )
+    ) {
+      const allowed = getAllowedContactStatusTransitions(
+        existingContact.status,
+      );
+      const allowedText = allowed.length
+        ? allowed.join(", ")
+        : "none (terminal state)";
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        `Cannot transition contact inquiry from "${existingContact.status}" to "${payload.status}". Allowed next statuses: ${allowedText}.`,
+      );
+    }
+  }
+
+  const updateFilter: Record<string, unknown> = { _id: contactId };
+  if (
+    payload.status !== undefined &&
+    payload.status !== existingContact.status
+  ) {
+    updateFilter.status = existingContact.status;
+  }
+
+  const result = await Contact.findOneAndUpdate(updateFilter, payload, {
     new: true,
     runValidators: true,
   }).populate("serviceId");
+
+  if (!result) {
+    const latest = await Contact.findById(contactId).populate("serviceId");
+    if (!latest)
+      throw new AppError(httpStatus.NOT_FOUND, "Contact not found");
+    if (payload.status && latest.status === payload.status) {
+      return latest;
+    }
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Contact status was modified concurrently. Please refresh and try again.",
+    );
+  }
 
   return result;
 };

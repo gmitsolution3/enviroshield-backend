@@ -144,6 +144,7 @@ const updatePaymentStatus = catchAsync(
   async (req: AuthenticatedRequest, res: Response) => {
     const order = await orderService.updatePaymentStatus(
       req.params.id as string,
+      req.body?.paymentStatus,
     );
 
     sendResponse(res, {
