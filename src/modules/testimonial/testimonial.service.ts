@@ -1,3 +1,4 @@
+import { TPaginationOptions } from "../../types/common";
 import httpStatus from "http-status";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
@@ -13,20 +14,42 @@ const createTestimonial = async (
   return result;
 };
 
-const getAllTestimonials = async (query: {
-  page?: string;
-  limit?: string;
-}) => {
-  const { page, limit, skip } =
-    calculatePagination(query);
+const getAllTestimonials = async (
+  query: TPaginationOptions & {
+    status?: string;
+    search?: string;
+    searchTerm?: string;
+    isFeatured?: string;
+  },
+) => {
+  const { page, limit, skip } = calculatePagination(query);
+  const filter: Record<string, unknown> = {};
 
-  const testimonials = await Testimonial.find({})
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  if (query.status && query.status !== "all") {
+    filter.status = query.status;
+  }
 
-  const total =
-    await Testimonial.countDocuments({});
+  if (query.isFeatured !== undefined) {
+    filter.isFeatured = query.isFeatured === "true";
+  }
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { clientName: searchRegex },
+      { company: searchRegex },
+      { quote: searchRegex },
+    ];
+  }
+
+  const [testimonials, total] = await Promise.all([
+    Testimonial.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Testimonial.countDocuments(filter),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 

@@ -10,6 +10,12 @@ import {
 } from "./contact.constant";
 import Contact from "./contact.model";
 import { TContact } from "./contact.types";
+import {
+  NOTIFICATION_ENTITY_TYPE,
+  NOTIFICATION_TYPE,
+} from "../notification/notification.constant";
+import { notificationService } from "../notification/notification.service";
+import { notifyNewContactInquiry } from "./contact.notification";
 
 const createContact = async (
   payload: Omit<TContact, "status" | "source">,
@@ -20,6 +26,32 @@ const createContact = async (
     source: CONTACT_SOURCE.WEBSITE,
   });
 
+  // Emit in-app notification to all admins
+  void notificationService
+    .notifyAdmins({
+      type: NOTIFICATION_TYPE.CONTACT_CREATED,
+      title: "New Contact Inquiry",
+      message: `New inquiry from ${result.fullName}${
+        result.projectName ? " for " + result.projectName : ""
+      }.`,
+      entityType: NOTIFICATION_ENTITY_TYPE.CONTACT,
+      entityId: (result._id as unknown as string).toString(),
+      actionUrl: "/dashboard/contacts",
+      metadata: {
+        contactId: (result._id as unknown as string).toString(),
+        customerName: result.fullName,
+        email: result.email,
+      },
+    })
+    .catch((err) =>
+      console.error("Failed to notify admins of contact inquiry:", err),
+    );
+
+  // Send branded email notification to all admins
+  void notifyNewContactInquiry(result).catch((err) =>
+    console.error("Failed to send contact inquiry email:", err),
+  );
+
   return result;
 };
 
@@ -28,6 +60,8 @@ const getAllContacts = async (
     status?: string;
     source?: string;
     serviceId?: string;
+    search?: string;
+    searchTerm?: string;
   },
 ) => {
   const { page, limit, skip } = calculatePagination(query);
@@ -44,6 +78,17 @@ const getAllContacts = async (
 
   if (query.serviceId) {
     filter.serviceId = query.serviceId;
+  }
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { fullName: searchRegex },
+      { email: searchRegex },
+      { phoneNumber: searchRegex },
+      { projectName: searchRegex },
+    ];
   }
 
   const contacts = await Contact.find(filter)
@@ -134,6 +179,30 @@ const updateContact = async (
       httpStatus.CONFLICT,
       "Contact status was modified concurrently. Please refresh and try again.",
     );
+  }
+
+  if (
+    payload.status !== undefined &&
+    payload.status !== existingContact.status
+  ) {
+    if (payload.status === CONTACT_STATUS.SITE_VISIT) {
+      void notificationService
+        .notifyAdmins({
+          type: NOTIFICATION_TYPE.SITE_VISIT_SCHEDULED,
+          title: "Site Visit Scheduled",
+          message: `Site visit scheduled for inquiry from ${result.fullName}.`,
+          entityType: NOTIFICATION_ENTITY_TYPE.CONTACT,
+          entityId: (result._id as unknown as string).toString(),
+          actionUrl: "/dashboard/contacts",
+          metadata: {
+            contactId: (result._id as unknown as string).toString(),
+            customerName: result.fullName,
+          },
+        })
+        .catch((err) =>
+          console.error("Failed to notify admins of site visit:", err),
+        );
+    }
   }
 
   return result;

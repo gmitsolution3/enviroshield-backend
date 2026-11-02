@@ -1,3 +1,5 @@
+import { NOTIFICATION_ENTITY_TYPE, NOTIFICATION_TYPE } from "../notification/notification.constant";
+import { notificationService } from "../notification/notification.service";
 import { randomBytes } from "crypto";
 import httpStatus from "http-status";
 import { ObjectId } from "mongodb";
@@ -81,6 +83,24 @@ const createBooking = async (
           error,
         );
       }
+
+      // Notify admins of new booking
+      void notificationService
+        .notifyAdmins({
+          type: NOTIFICATION_TYPE.BOOKING_CREATED,
+          title: "New Service Booking",
+          message: `New booking ${createdBooking.bookingNumber} placed.`,
+          entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+          entityId: createdBooking._id.toString(),
+          actionUrl: "/dashboard/service-bookings",
+          metadata: {
+            bookingNumber: createdBooking.bookingNumber,
+            userId: createdBooking.userId,
+          },
+        })
+        .catch((err) =>
+          console.error("Failed to notify admins of booking placed:", err),
+        );
 
       return createdBooking;
     } catch (error) {
@@ -324,6 +344,31 @@ const updateBookingStatus = async (
     );
   }
 
+  // Notify customer of booking status transition
+  const isCancelled = status === BOOKING_STATUS.CANCELLED;
+  void notificationService
+    .createNotification({
+      recipient: updatedBooking.userId,
+      type: isCancelled
+        ? NOTIFICATION_TYPE.BOOKING_CANCELLED
+        : NOTIFICATION_TYPE.BOOKING_STATUS_CHANGED,
+      title: isCancelled
+        ? `Booking Cancelled: ${updatedBooking.bookingNumber}`
+        : `Booking Status Updated: ${status.toUpperCase()}`,
+      message: `Your booking ${updatedBooking.bookingNumber} is now ${status}.`,
+      entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+      entityId: updatedBooking._id.toString(),
+      actionUrl: "/dashboard/my-services",
+      metadata: {
+        bookingNumber: updatedBooking.bookingNumber,
+        status,
+        previousStatus,
+      },
+    })
+    .catch((err) =>
+      console.error("Failed to notify customer of booking update:", err),
+    );
+
   return addPopulatedReferences(updatedBooking);
 };
 
@@ -364,7 +409,28 @@ const updateBookingManagement = async (
   if (changes.adminNotes !== undefined)
     booking.adminNotes = changes.adminNotes;
 
+  const previousDate = booking.siteVisitDate;
   await booking.save();
+
+  if (changes.siteVisitDate !== undefined && changes.isSiteVisit !== false) {
+    void notificationService
+      .createNotification({
+        recipient: booking.userId,
+        type: NOTIFICATION_TYPE.SITE_VISIT_SCHEDULED,
+        title: "Site Visit Scheduled",
+        message: `A site visit for booking ${booking.bookingNumber} has been scheduled for ${new Date(changes.siteVisitDate).toLocaleDateString()}.`,
+        entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+        entityId: booking._id.toString(),
+        actionUrl: "/dashboard/my-services",
+        metadata: {
+          bookingNumber: booking.bookingNumber,
+          siteVisitDate: changes.siteVisitDate,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify customer of site visit date:", err),
+      );
+  }
   return addPopulatedReferences(booking);
 };
 
@@ -431,6 +497,43 @@ const cancelBooking = async (
       `Failed to send cancellation email for ${existingBooking.bookingNumber}:`,
       error,
     );
+  }
+
+  if (actor.role === "user") {
+    void notificationService
+      .notifyAdmins({
+        type: NOTIFICATION_TYPE.BOOKING_CANCELLED,
+        title: "Booking Cancelled by Customer",
+        message: `Customer cancelled booking ${existingBooking.bookingNumber}.`,
+        entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+        entityId: existingBooking._id.toString(),
+        actionUrl: "/dashboard/service-bookings",
+        metadata: {
+          bookingNumber: existingBooking.bookingNumber,
+          userId: existingBooking.userId,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify admins of customer cancellation:", err),
+      );
+  } else {
+    void notificationService
+      .createNotification({
+        recipient: existingBooking.userId,
+        type: NOTIFICATION_TYPE.BOOKING_CANCELLED,
+        title: `Booking Cancelled: ${existingBooking.bookingNumber}`,
+        message: `Your booking ${existingBooking.bookingNumber} was cancelled by administrator.`,
+        entityType: NOTIFICATION_ENTITY_TYPE.BOOKING,
+        entityId: existingBooking._id.toString(),
+        actionUrl: "/dashboard/my-services",
+        metadata: {
+          bookingNumber: existingBooking.bookingNumber,
+          status: BOOKING_STATUS.CANCELLED,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to notify customer of booking cancellation:", err),
+      );
   }
 
   return addPopulatedReferences(existingBooking);

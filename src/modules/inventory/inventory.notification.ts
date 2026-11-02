@@ -1,3 +1,5 @@
+import { NOTIFICATION_ENTITY_TYPE, NOTIFICATION_TYPE } from "../notification/notification.constant";
+import { notificationService } from "../notification/notification.service";
 
 import { client } from "../../config/mongodb";
 import { transporter } from "../../config/mail";
@@ -55,7 +57,31 @@ export const notifyLowStockAdmins = async (
     return;
   }
 
-  const subject = `Low Stock Alert: ${product.name}`;
+
+  // Trigger in-app notification to all admins
+  const isOutOfStock = product.stockQuantity <= 0;
+  void notificationService
+    .notifyAdmins({
+      type: isOutOfStock
+        ? NOTIFICATION_TYPE.INVENTORY_OUT_OF_STOCK
+        : NOTIFICATION_TYPE.INVENTORY_LOW_STOCK,
+      title: isOutOfStock
+        ? `Out of Stock: ${product.name}`
+        : `Low Stock Alert: ${product.name}`,
+      message: `${product.name} (SKU: ${product.sku}) has reached ${product.stockQuantity} units (threshold: ${product.lowStockThreshold}).`,
+      entityType: NOTIFICATION_ENTITY_TYPE.PRODUCT,
+      actionUrl: '/dashboard/ecommerce/inventory',
+      metadata: {
+        sku: product.sku,
+        stockQuantity: product.stockQuantity,
+        lowStockThreshold: product.lowStockThreshold,
+      },
+    })
+    .catch((err) =>
+      console.error('Failed to notify admins of low stock in-app:', err),
+    );
+
+    const subject = `Low Stock Alert: ${product.name}`;
 
   const preview = `${product.name} has reached its low-stock threshold. Current stock: ${product.stockQuantity}.`;
 

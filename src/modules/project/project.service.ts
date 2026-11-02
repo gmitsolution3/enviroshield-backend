@@ -1,3 +1,4 @@
+import { TPaginationOptions } from "../../types/common";
 import httpStatus from "http-status";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
@@ -35,19 +36,48 @@ const createProject = async (payload: TProject) => {
   return project;
 };
 
-const getAllProjects = async (query: {
-  page?: string;
-  limit?: string;
-}) => {
+const getAllProjects = async (
+  query: TPaginationOptions & {
+    status?: string;
+    serviceId?: string;
+    search?: string;
+    searchTerm?: string;
+    isFeatured?: string;
+  },
+) => {
   const { page, limit, skip } = calculatePagination(query);
+  const filter: Record<string, unknown> = {};
 
-  const projects = await Project.find({})
-    .populate("serviceId")
-    .sort({ completionDate: -1 })
-    .skip(skip)
-    .limit(limit);
+  if (query.status && query.status !== "all") {
+    filter.status = query.status;
+  }
 
-  const total = await Project.countDocuments({});
+  if (query.serviceId) {
+    filter.serviceId = query.serviceId;
+  }
+
+  if (query.isFeatured !== undefined) {
+    filter.isFeatured = query.isFeatured === "true";
+  }
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { title: searchRegex },
+      { client: searchRegex },
+      { location: searchRegex },
+    ];
+  }
+
+  const [projects, total] = await Promise.all([
+    Project.find(filter)
+      .populate("serviceId")
+      .sort({ completionDate: -1 })
+      .skip(skip)
+      .limit(limit),
+    Project.countDocuments(filter),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 

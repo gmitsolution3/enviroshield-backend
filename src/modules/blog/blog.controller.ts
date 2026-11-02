@@ -20,10 +20,7 @@ const createBlog = catchAsync(async (req: Request, res: Response) => {
 
 const getAllBlogs = catchAsync(
   async (req: Request, res: Response) => {
-    const result = await blogService.getAllBlogs({
-      page: req.query.page as string,
-      limit: req.query.limit as string,
-    });
+    const result = await blogService.getAllBlogs(req.query);
 
     sendResponse(res, {
       statusCode: httpStatus.OK,

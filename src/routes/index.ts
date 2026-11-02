@@ -13,6 +13,7 @@ import projectRoutes from "../modules/project/project.route";
 import serviceRoutes from "../modules/service/service.route";
 import settingsRoutes from "../modules/settings/settings.route";
 import testimonialRoutes from "../modules/testimonial/testimonial.route";
+import notificationRoutes from "../modules/notification/notification.route";
 
 const router = Router();
 
@@ -70,6 +71,8 @@ const moduleRoutes: {
   },
   { path: "/contact", route: contactRoutes },
   { path: "/settings", route: settingsRoutes },
+  { path: "/notifications", route: notificationRoutes },
+  { path: "/notification", route: notificationRoutes },
 ];
 
 moduleRoutes.forEach((route) => {

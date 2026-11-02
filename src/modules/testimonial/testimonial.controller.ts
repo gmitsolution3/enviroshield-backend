@@ -15,10 +15,7 @@ const createTestimonial = catchAsync(async (req, res) => {
 });
 
 const getAllTestimonials = catchAsync(async (req, res) => {
-  const result = await testimonialService.getAllTestimonials({
-    page: req.query.page as string,
-    limit: req.query.limit as string,
-  });
+  const result = await testimonialService.getAllTestimonials(req.query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

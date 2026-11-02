@@ -23,11 +23,20 @@ const createCategory = async (payload: TCategory) => {
 };
 
 const getAllCategories = async (
-  query: TPaginationOptions,
+  query: TPaginationOptions & {
+    search?: string;
+    searchTerm?: string;
+  },
 ) => {
   const { page, limit, skip } = calculatePagination(query);
 
-  const filter = {};
+  const filter: Record<string, unknown> = {};
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [{ name: searchRegex }, { description: searchRegex }];
+  }
 
   const categories = await Category.find(filter)
     .sort({ createdAt: -1 })

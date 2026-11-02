@@ -50,16 +50,39 @@ const createService = async (payload: Omit<TService, "projects">) => {
   return result;
 };
 
-const getAllServices = async (query: TPaginationOptions) => {
+const getAllServices = async (
+  query: TPaginationOptions & {
+    status?: string;
+    search?: string;
+    searchTerm?: string;
+    isFeatured?: string;
+  },
+) => {
   const { page, limit, skip } = calculatePagination(query);
+  const filter: Record<string, unknown> = {};
 
-  const services = await Service.find({})
-    .populate("projects")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  if (query.status && query.status !== "all") {
+    filter.status = query.status;
+  }
 
-  const total = await Service.countDocuments({});
+  if (query.isFeatured !== undefined) {
+    filter.isFeatured = query.isFeatured === "true";
+  }
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [{ name: searchRegex }, { shortDescription: searchRegex }];
+  }
+
+  const [services, total] = await Promise.all([
+    Service.find(filter)
+      .populate("projects")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Service.countDocuments(filter),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 

@@ -72,17 +72,43 @@ const createBlog = async (payload: TBlog) => {
   return attachAuthor(result);
 };
 
-const getAllBlogs = async (query: TPaginationOptions) => {
+const getAllBlogs = async (
+  query: TPaginationOptions & {
+    status?: string;
+    search?: string;
+    searchTerm?: string;
+    category?: string;
+    isFeatured?: string;
+  },
+) => {
   const { page, limit, skip } = calculatePagination(query);
+  const filter: Record<string, unknown> = {};
 
-  const filter = {};
+  if (query.status && query.status !== "all") {
+    filter.status = query.status;
+  }
 
-  const blogs = await Blog.find(filter)
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  if (query.category) {
+    filter.category = query.category;
+  }
 
-  const total = await Blog.countDocuments(filter);
+  if (query.isFeatured !== undefined) {
+    filter.isFeatured = query.isFeatured === "true";
+  }
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [{ title: searchRegex }, { excerpt: searchRegex }];
+  }
+
+  const [blogs, total] = await Promise.all([
+    Blog.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit),
+    Blog.countDocuments(filter),
+  ]);
 
   const totalPages = Math.ceil(total / limit);
 
