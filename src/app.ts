@@ -8,6 +8,7 @@ import router from "./routes";
 const app = express();
 
 const allowedOrigins = [
+  "https://www.enviroshieldbd.com",
   "http://localhost:3000",
   "https://enviroshield.vercel.app"
 ];
