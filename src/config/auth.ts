@@ -12,6 +12,9 @@ export const auth = betterAuth({
   }),
 
   user: {
+    deleteUser: {
+      enabled: true,
+    },
     additionalFields: {
       phone: {
         type: "string",
