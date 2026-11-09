@@ -4,7 +4,7 @@ import app from "./app";
 import config from "./config";
 import connectDB from "./config/database"; 
 
-async function startServer() {
+async function startServer() { 
   try {
     await connectDB();
 
