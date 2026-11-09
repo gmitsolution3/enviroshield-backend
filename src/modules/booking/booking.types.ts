@@ -30,6 +30,13 @@ export type TCreateBookingPayload = {
   serviceId: string;
   project: TBookingProject;
   isSiteVisit?: boolean;
+  conversionContext?: {
+    eventId?: string;
+    fbp?: string;
+    fbc?: string;
+    eventSourceUrl?: string;
+    marketingConsent?: boolean;
+  };
 };
 
 export type TBookingQuery = {

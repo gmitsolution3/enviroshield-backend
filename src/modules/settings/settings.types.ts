@@ -27,9 +27,17 @@ export interface IAnalyticsSettings {
   gtm: IGtmSettings;
 }
 
+export interface IMetaCapiSettings {
+  enabled: boolean;
+  accessToken?: string;
+  testEventCode?: string;
+  accessTokenConfigured?: boolean;
+}
+
 export interface IMetaPixelSettings {
   enabled: boolean;
   pixelId: string;
+  capi?: IMetaCapiSettings;
 }
 
 export interface IGoogleAdsConversionLabels {
@@ -67,4 +75,17 @@ export interface ISettings {
   consent: IConsentSettings;
 }
 
-export type IPublicSettings = ISettings;
+export interface IPublicMarketingSettings {
+  metaPixel: {
+    enabled: boolean;
+    pixelId: string;
+  };
+  googleAds: IGoogleAdsSettings;
+}
+
+export interface IPublicSettings {
+  seo: ISeoSettings;
+  analytics: IAnalyticsSettings;
+  marketing: IPublicMarketingSettings;
+  consent: IConsentSettings;
+}

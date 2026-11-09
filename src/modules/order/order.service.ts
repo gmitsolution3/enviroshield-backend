@@ -1,5 +1,6 @@
 import { NOTIFICATION_ENTITY_TYPE, NOTIFICATION_TYPE } from "../notification/notification.constant";
 import { notificationService } from "../notification/notification.service";
+import { metaCapiService } from "../marketing/meta-capi.service";
 import { randomBytes } from "crypto";
 import httpStatus from "http-status";
 import mongoose, { Types } from "mongoose";
@@ -48,6 +49,13 @@ type TCreateOrderPayload = {
   };
   deliveryZone: TDeliveryZone;
   customerNote?: string;
+  conversionContext?: {
+    eventId?: string;
+    fbp?: string;
+    fbc?: string;
+    eventSourceUrl?: string;
+    marketingConsent?: boolean;
+  };
 };
 
 type TOrderQuery = {
@@ -67,6 +75,7 @@ const DELIVERY_FEES: Record<TDeliveryZone, number> = {
 const createOrder = async (
   user: { id: string; email: string },
   payload: TCreateOrderPayload,
+  requestContext?: { clientIp?: string; userAgent?: string },
 ) => {
   if (!user.id || !user.email) {
     throw new AppError(
@@ -330,6 +339,37 @@ const createOrder = async (
       })
       .catch((err) =>
         console.error("Failed to notify admins of order placed:", err),
+      );
+
+    // Dispatch server-side Purchase event to Meta CAPI only after transaction commit
+    void metaCapiService
+      .dispatchPurchaseEvent({
+        order: {
+          _id: order._id,
+          orderNumber: order.orderNumber,
+          totalAmount: order.totalAmount,
+          currency: order.currency,
+          items: order.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            productName: item.name,
+          })),
+          customer: {
+            name: order.customer.name,
+            phone: order.customer.phone,
+            email: order.customer.email,
+          },
+          userId: order.userId,
+        },
+        context: {
+          ...payload.conversionContext,
+          clientIp: requestContext?.clientIp,
+          userAgent: requestContext?.userAgent,
+        },
+      })
+      .catch((err) =>
+        console.error("Failed to dispatch CAPI Purchase event:", err),
       );
 
     return order;

@@ -1,9 +1,63 @@
+import { encrypt } from "../../utils/crypto";
 import { Settings } from "./settings.model";
 import { ISettings, IPublicSettings } from "./settings.types";
 
-const getAdminSettings = async (): Promise<ISettings> => {
+export interface IAdminSettingsResponse extends Omit<ISettings, "marketing"> {
+  marketing: {
+    metaPixel: {
+      enabled: boolean;
+      pixelId: string;
+      capi: {
+        enabled: boolean;
+        accessTokenConfigured: boolean;
+        testEventCode: string;
+      };
+    };
+    googleAds: ISettings["marketing"]["googleAds"];
+  };
+}
+
+export interface IUpdateSettingsPayload extends Partial<Omit<ISettings, "marketing">> {
+  marketing?: {
+    metaPixel?: {
+      enabled?: boolean;
+      pixelId?: string;
+      capi?: {
+        enabled?: boolean;
+        accessToken?: string;
+        clearAccessToken?: boolean;
+        testEventCode?: string;
+      };
+    };
+    googleAds?: Partial<ISettings["marketing"]["googleAds"]>;
+  };
+}
+
+const formatAdminSettings = (settingsObj: ISettings): IAdminSettingsResponse => {
+  const capi = settingsObj.marketing?.metaPixel?.capi;
+  const rawToken = capi?.accessToken;
+  const isConfigured = Boolean(rawToken && rawToken.trim().length > 0);
+
+  return {
+    ...settingsObj,
+    marketing: {
+      ...settingsObj.marketing,
+      metaPixel: {
+        enabled: Boolean(settingsObj.marketing?.metaPixel?.enabled),
+        pixelId: settingsObj.marketing?.metaPixel?.pixelId || "",
+        capi: {
+          enabled: Boolean(capi?.enabled),
+          accessTokenConfigured: isConfigured,
+          testEventCode: capi?.testEventCode || "",
+        },
+      },
+    },
+  };
+};
+
+const getAdminSettings = async (): Promise<IAdminSettingsResponse> => {
   const settings = await Settings.getSettings();
-  return settings.toObject();
+  return formatAdminSettings(settings.toObject());
 };
 
 const getPublicSettings = async (): Promise<IPublicSettings> => {
@@ -68,8 +122,8 @@ const getPublicSettings = async (): Promise<IPublicSettings> => {
 };
 
 const updateSettings = async (
-  payload: Partial<ISettings>,
-): Promise<ISettings> => {
+  payload: IUpdateSettingsPayload,
+): Promise<IAdminSettingsResponse> => {
   const current = await Settings.getSettings();
 
   if (payload.seo) {
@@ -100,11 +154,58 @@ const updateSettings = async (
 
   if (payload.marketing) {
     if (payload.marketing.metaPixel) {
+      const incomingPixel = payload.marketing.metaPixel;
+      const currentPixel = current.marketing.metaPixel || {
+        enabled: false,
+        pixelId: "",
+        capi: { enabled: false, accessToken: "", testEventCode: "" },
+      };
+
+      const currentCapi = currentPixel.capi || {
+        enabled: false,
+        accessToken: "",
+        testEventCode: "",
+      };
+
+      let updatedAccessToken = currentCapi.accessToken || "";
+
+      if (incomingPixel.capi) {
+        if (incomingPixel.capi.clearAccessToken === true) {
+          updatedAccessToken = "";
+        } else if (
+          typeof incomingPixel.capi.accessToken === "string" &&
+          incomingPixel.capi.accessToken.trim().length > 0
+        ) {
+          // New token provided: encrypt before saving
+          updatedAccessToken = encrypt(incomingPixel.capi.accessToken.trim());
+        }
+        // If neither clearAccessToken nor a new accessToken string is provided,
+        // updatedAccessToken remains the existing currentCapi.accessToken.
+      }
+
       current.marketing.metaPixel = {
-        ...current.marketing.metaPixel,
-        ...payload.marketing.metaPixel,
+        enabled:
+          incomingPixel.enabled !== undefined
+            ? incomingPixel.enabled
+            : currentPixel.enabled,
+        pixelId:
+          incomingPixel.pixelId !== undefined
+            ? incomingPixel.pixelId
+            : currentPixel.pixelId,
+        capi: {
+          enabled:
+            incomingPixel.capi?.enabled !== undefined
+              ? incomingPixel.capi.enabled
+              : currentCapi.enabled,
+          accessToken: updatedAccessToken,
+          testEventCode:
+            incomingPixel.capi?.testEventCode !== undefined
+              ? incomingPixel.capi.testEventCode
+              : (currentCapi.testEventCode || ""),
+        },
       };
     }
+
     if (payload.marketing.googleAds) {
       current.marketing.googleAds = {
         ...current.marketing.googleAds,
@@ -125,7 +226,7 @@ const updateSettings = async (
   }
 
   await current.save();
-  return current.toObject();
+  return formatAdminSettings(current.toObject());
 };
 
 export const settingsService = {

@@ -78,6 +78,14 @@ export const updateSettingsValidationSchema = z.object({
                 },
               )
               .optional(),
+            capi: z
+              .object({
+                enabled: z.boolean().optional(),
+                accessToken: z.string().trim().optional(),
+                clearAccessToken: z.boolean().optional(),
+                testEventCode: z.string().trim().max(100).optional(),
+              })
+              .optional(),
           })
           .optional(),
         googleAds: z

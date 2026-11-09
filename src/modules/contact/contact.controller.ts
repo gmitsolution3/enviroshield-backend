@@ -6,7 +6,16 @@ import { contactService } from "./contact.service";
 
 const createContact = catchAsync(
   async (req: Request, res: Response) => {
-    const result = await contactService.createContact(req.body);
+    const rawForwarded = req.headers["x-forwarded-for"];
+    const clientIp =
+      (typeof rawForwarded === "string" ? rawForwarded.split(",")[0]?.trim() : undefined) ||
+      req.ip;
+    const userAgent = req.headers["user-agent"];
+
+    const result = await contactService.createContact(req.body, {
+      clientIp,
+      userAgent,
+    });
 
     sendResponse(res, {
       statusCode: httpStatus.CREATED,

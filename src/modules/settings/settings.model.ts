@@ -36,6 +36,11 @@ const defaultSettings: ISettings = {
     metaPixel: {
       enabled: false,
       pixelId: "",
+      capi: {
+        enabled: false,
+        accessToken: "",
+        testEventCode: "",
+      },
     },
     googleAds: {
       enabled: false,
@@ -95,6 +100,11 @@ const settingsSchema = new Schema<ISettingsDocument, ISettingsModel>(
       metaPixel: {
         enabled: { type: Boolean, default: false },
         pixelId: { type: String, default: "" },
+        capi: {
+          enabled: { type: Boolean, default: false },
+          accessToken: { type: String, default: "" },
+          testEventCode: { type: String, default: "" },
+        },
       },
       googleAds: {
         enabled: { type: Boolean, default: false },
@@ -141,4 +151,3 @@ export const Settings = model<ISettingsDocument, ISettingsModel>(
   "Settings",
   settingsSchema,
 );
-

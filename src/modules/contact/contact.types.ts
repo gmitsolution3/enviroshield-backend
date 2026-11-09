@@ -74,3 +74,15 @@ export type TContact = {
   source: TContactSource;
   adminNotes?: string;
 };
+
+export type TConversionContext = {
+  eventId?: string;
+  fbp?: string;
+  fbc?: string;
+  eventSourceUrl?: string;
+  marketingConsent?: boolean;
+};
+
+export type TCreateContactPayload = Omit<TContact, "status" | "source"> & {
+  conversionContext?: TConversionContext;
+};

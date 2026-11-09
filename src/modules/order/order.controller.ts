@@ -16,12 +16,19 @@ const createOrder = catchAsync(
       });
     }
 
+    const rawForwarded = req.headers["x-forwarded-for"];
+    const clientIp =
+      (typeof rawForwarded === "string" ? rawForwarded.split(",")[0]?.trim() : undefined) ||
+      req.ip;
+    const userAgent = req.headers["user-agent"];
+
     const order = await orderService.createOrder(
       {
         id: req.user.id,
         email: req.user.email,
       },
       req.body,
+      { clientIp, userAgent },
     );
 
     sendResponse(res, {

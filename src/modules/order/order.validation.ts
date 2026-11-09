@@ -75,6 +75,16 @@ const createOrderValidationSchema = z.object({
       .trim()
       .max(1000, "Customer note cannot exceed 1000 characters")
       .optional(),
+
+    conversionContext: z
+      .object({
+        eventId: z.string().trim().max(100).optional(),
+        fbp: z.string().trim().max(150).optional(),
+        fbc: z.string().trim().max(250).optional(),
+        eventSourceUrl: z.string().trim().max(1000).optional(),
+        marketingConsent: z.boolean().optional(),
+      })
+      .optional(),
   }),
 });
 

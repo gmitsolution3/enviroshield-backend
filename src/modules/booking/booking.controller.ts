@@ -7,9 +7,16 @@ import { bookingService } from "./booking.service";
 
 const createBooking = catchAsync(
   async (req: AuthenticatedRequest, res: Response) => {
+    const rawForwarded = req.headers["x-forwarded-for"];
+    const clientIp =
+      (typeof rawForwarded === "string" ? rawForwarded.split(",")[0]?.trim() : undefined) ||
+      req.ip;
+    const userAgent = req.headers["user-agent"];
+
     const booking = await bookingService.createBooking(
       req.user!.id,
       req.body,
+      { clientIp, userAgent },
     );
     sendResponse(res, {
       statusCode: httpStatus.CREATED,

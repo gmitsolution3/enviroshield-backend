@@ -1,5 +1,6 @@
 import { NOTIFICATION_ENTITY_TYPE, NOTIFICATION_TYPE } from "../notification/notification.constant";
 import { notificationService } from "../notification/notification.service";
+import { metaCapiService } from "../marketing/meta-capi.service";
 import { randomBytes } from "crypto";
 import httpStatus from "http-status";
 import { ObjectId } from "mongodb";
@@ -36,6 +37,7 @@ const generateBookingNumber = () => {
 const createBooking = async (
   userId: string,
   payload: TCreateBookingPayload,
+  requestContext?: { clientIp?: string; userAgent?: string },
 ) => {
   if (!userId) {
     throw new AppError(
@@ -49,7 +51,7 @@ const createBooking = async (
   }
 
   const service = await Service.findById(payload.serviceId).select(
-    "_id price",
+    "_id price name",
   );
 
   if (!service) {
@@ -101,6 +103,47 @@ const createBooking = async (
         .catch((err) =>
           console.error("Failed to notify admins of booking placed:", err),
         );
+
+      // Dispatch server-side Schedule event to Meta CAPI
+      void (async () => {
+        try {
+          const userConditions: Record<string, unknown>[] = [
+            { id: userId },
+            { _id: userId },
+          ];
+          if (ObjectId.isValid(userId)) {
+            userConditions.push({ _id: new ObjectId(userId) });
+          }
+
+          const userDoc = await client
+            .db(process.env.MONGODB_DB)
+            .collection("user")
+            .findOne(
+              { $or: userConditions },
+              { projection: { _id: 1, id: 1, name: 1, email: 1, phone: 1 } },
+            );
+
+          await metaCapiService.dispatchScheduleEvent({
+            booking: createdBooking,
+            serviceTitle: service.name,
+            user: userDoc
+              ? {
+                  id: userId,
+                  name: typeof userDoc.name === "string" ? userDoc.name : undefined,
+                  email: typeof userDoc.email === "string" ? userDoc.email : undefined,
+                  phone: typeof userDoc.phone === "string" ? userDoc.phone : undefined,
+                }
+              : undefined,
+            context: {
+              ...payload.conversionContext,
+              clientIp: requestContext?.clientIp,
+              userAgent: requestContext?.userAgent,
+            },
+          });
+        } catch (err) {
+          console.error("Failed to dispatch CAPI Schedule event:", err);
+        }
+      })();
 
       return createdBooking;
     } catch (error) {

@@ -16,12 +16,16 @@ import {
 } from "../notification/notification.constant";
 import { notificationService } from "../notification/notification.service";
 import { notifyNewContactInquiry } from "./contact.notification";
+import { metaCapiService } from "../marketing/meta-capi.service";
+import type { TCreateContactPayload } from "./contact.types";
 
 const createContact = async (
-  payload: Omit<TContact, "status" | "source">,
+  payload: TCreateContactPayload,
+  requestContext?: { clientIp?: string; userAgent?: string },
 ) => {
+  const { conversionContext, ...contactData } = payload;
   const result = await Contact.create({
-    ...payload,
+    ...contactData,
     status: CONTACT_STATUS.NEW,
     source: CONTACT_SOURCE.WEBSITE,
   });
@@ -51,6 +55,20 @@ const createContact = async (
   void notifyNewContactInquiry(result).catch((err) =>
     console.error("Failed to send contact inquiry email:", err),
   );
+
+  // Dispatch server-side Lead event to Meta CAPI
+  void metaCapiService
+    .dispatchLeadEvent({
+      contact: result,
+      context: {
+        ...conversionContext,
+        clientIp: requestContext?.clientIp,
+        userAgent: requestContext?.userAgent,
+      },
+    })
+    .catch((err) =>
+      console.error("Failed to dispatch CAPI Lead event:", err),
+    );
 
   return result;
 };
