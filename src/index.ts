@@ -2,7 +2,7 @@
 
 import app from "./app";
 import config from "./config";
-import connectDB from "./config/database";
+import connectDB from "./config/database"; 
 
 async function startServer() {
   try {
