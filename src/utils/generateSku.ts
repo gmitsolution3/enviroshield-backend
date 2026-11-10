@@ -10,7 +10,8 @@ export function cleanWeightForSku(weightOrSize: string): string {
 }
 
 export function generateProductSku(name: string, prefix = "ENV"): string {
-  if (!name || !name.trim()) return `${prefix}-PROD`;
+  const rnd = String(Math.floor(1 + Math.random() * 999)).padStart(3, "0");
+  if (!name || !name.trim()) return `${prefix}-PRD-${rnd}`;
 
   const normalized = name
     .trim()
@@ -18,28 +19,25 @@ export function generateProductSku(name: string, prefix = "ENV"): string {
     .replace(/[^a-zA-Z0-9\s]/g, "");
 
   const allWords = normalized.split(/\s+/).filter(Boolean);
-  if (allWords.length === 0) return `${prefix}-PROD`;
+  if (allWords.length === 0) return `${prefix}-PRD-${rnd}`;
 
   const nonBrand = allWords.filter(
     (w) => !/^(enviro|enviroshield)$/i.test(w)
   );
   const words = nonBrand.length > 0 ? nonBrand : allWords;
 
-  const cleanWord = (w: string) => {
-    const upper = w.toUpperCase();
-    return upper.length <= 6 ? upper : upper.slice(0, 5);
-  };
-
   let code = "";
   if (words.length === 1) {
-    code = cleanWord(words[0]);
+    const single = words[0].toUpperCase();
+    code = single.length <= 3 ? single : single.slice(0, 3);
   } else {
-    const w1 = cleanWord(words[0]);
-    const w2 = cleanWord(words[1]);
-    code = `${w1}-${w2}`;
+    code = words
+      .map((w) => w[0].toUpperCase())
+      .slice(0, 4)
+      .join("");
   }
 
-  return `${prefix}-${code}`.toUpperCase();
+  return `${prefix}-${code}-${rnd}`.toUpperCase();
 }
 
 export function generateVariantSku(

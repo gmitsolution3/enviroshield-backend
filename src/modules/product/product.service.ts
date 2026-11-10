@@ -23,12 +23,11 @@ type TProductQuery = TPaginationOptions & {
 
 const createProduct = async (payload: TProduct) => {
   if (!payload.sku || !payload.sku.trim()) {
-    const baseSku = generateProductSku(payload.name);
-    let candidate = baseSku;
-    let counter = 1;
-    while (await Product.findOne({ sku: candidate })) {
-      candidate = `${baseSku}-${String(counter).padStart(2, "0")}`;
-      counter++;
+    let candidate = generateProductSku(payload.name);
+    let attempts = 0;
+    while ((await Product.findOne({ sku: candidate })) && attempts < 10) {
+      candidate = generateProductSku(payload.name);
+      attempts++;
     }
     payload.sku = candidate;
   } else {
