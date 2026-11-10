@@ -45,6 +45,43 @@ const createProduct = async (payload: TProduct) => {
     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
   }
 
+  if (payload.variants && payload.variants.length > 0) {
+    payload.variants = payload.variants.map((v) => {
+      const label = (v.weight || v.size || "").trim();
+      return {
+        ...v,
+        weight: label,
+        size: label,
+      };
+    });
+    const weights = payload.variants.map((v) =>
+      (v.weight || v.size || "").trim().toLowerCase(),
+    );
+    if (new Set(weights).size !== weights.length) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Duplicate variant weights are not allowed",
+      );
+    }
+    const prices = payload.variants.map((v) => v.price);
+    payload.price = Math.min(...prices);
+    payload.stockQuantity = payload.variants.reduce(
+      (sum, v) => sum + (v.stockQuantity || 0),
+      0,
+    );
+
+    if (!payload.weight || payload.weight === 0) {
+      const firstWeight = payload.variants[0]?.weight || "";
+      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
+      payload.weight = !isNaN(parsed) && parsed > 0 ? parsed : 0;
+    }
+  } else if (payload.status === PRODUCT_STATUS.PUBLISHED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Published products must have at least one variant",
+    );
+  }
+
   if (payload.status === PRODUCT_STATUS.PUBLISHED) {
     payload.publishedAt = payload.publishedAt ?? new Date();
   } else {
@@ -210,6 +247,60 @@ const updateProduct = async (productId: string, payload: Partial<TProduct>) => {
         "A product with this SKU already exists",
       );
     }
+  }
+
+  if (payload.variants && payload.variants.length > 0) {
+    payload.variants = payload.variants.map((v) => {
+      const label = (v.weight || v.size || "").trim();
+      return {
+        ...v,
+        weight: label,
+        size: label,
+      };
+    });
+    const weights = payload.variants.map((v) =>
+      (v.weight || v.size || "").trim().toLowerCase(),
+    );
+    if (new Set(weights).size !== weights.length) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Duplicate variant weights are not allowed",
+      );
+    }
+    const prices = payload.variants.map((v) => v.price);
+    payload.price = Math.min(...prices);
+    payload.stockQuantity = payload.variants.reduce(
+      (sum, v) => sum + (v.stockQuantity || 0),
+      0,
+    );
+
+    if (
+      payload.weight === undefined ||
+      payload.weight === null ||
+      payload.weight === 0
+    ) {
+      const firstWeight = payload.variants[0]?.weight || "";
+      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
+      if (!isNaN(parsed) && parsed > 0) {
+        payload.weight = parsed;
+      }
+    }
+  }
+
+  const nextStatus = payload.status ?? existingProduct.status;
+  const nextVariants =
+    payload.variants !== undefined
+      ? payload.variants
+      : existingProduct.variants;
+
+  if (
+    nextStatus === PRODUCT_STATUS.PUBLISHED &&
+    (!nextVariants || nextVariants.length === 0)
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Published products must have at least one variant",
+    );
   }
 
   if (payload.status === PRODUCT_STATUS.PUBLISHED) {

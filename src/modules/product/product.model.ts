@@ -4,7 +4,50 @@ import {
   TProduct,
   TProductImage,
   TProductSEO,
+  TProductVariant,
 } from "./product.types";
+
+const productVariantSchema = new Schema<TProductVariant>(
+  {
+    weight: {
+      type: String,
+      trim: true,
+    },
+    size: {
+      type: String,
+      trim: true,
+    },
+    price: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    costPrice: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    sku: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
+    stockQuantity: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    lowStockThreshold: {
+      type: Number,
+      min: 0,
+      default: 5,
+    },
+  },
+  {
+    _id: true,
+  },
+);
 
 const productImageSchema = new Schema<TProductImage>(
   {
@@ -129,6 +172,24 @@ const productSchema = new Schema<TProduct>(
       default: [],
     },
 
+    variants: {
+      type: [productVariantSchema],
+      required: true,
+      default: [],
+      validate: [
+        {
+          validator: function (variants: TProductVariant[]) {
+            if (!variants || variants.length === 0) return true;
+            const weights = variants.map((v) =>
+              (v.weight || v.size || "").trim().toLowerCase(),
+            );
+            return new Set(weights).size === weights.length;
+          },
+          message: "Duplicate variant weights are not allowed.",
+        },
+      ],
+    },
+
     price: {
       type: Number,
       required: true,
@@ -143,8 +204,9 @@ const productSchema = new Schema<TProduct>(
 
     weight: {
       type: Number,
-      required: true,
+      required: false,
       min: 0,
+      default: 0,
     },
 
     tdsUrl: {
@@ -202,6 +264,28 @@ const productSchema = new Schema<TProduct>(
     versionKey: false,
   },
 );
+
+productSchema.pre("validate", function () {
+  if (this.variants && this.variants.length > 0) {
+    for (const v of this.variants) {
+      const val = (v.weight || v.size || "").trim();
+      v.weight = val;
+      v.size = val;
+    }
+    const prices = this.variants.map((v) => v.price);
+    this.price = Math.min(...prices);
+    this.stockQuantity = this.variants.reduce(
+      (sum, v) => sum + (v.stockQuantity || 0),
+      0,
+    );
+
+    if (this.weight === undefined || this.weight === null || this.weight === 0) {
+      const firstWeight = this.variants[0]?.weight || "";
+      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
+      this.weight = !isNaN(parsed) && parsed > 0 ? parsed : 0;
+    }
+  }
+});
 
 productSchema.index({
   categoryId: 1,

@@ -21,6 +21,9 @@ export type TDeliveryZone =
 
 export type TOrderItem = {
   productId: Types.ObjectId;
+  variantId?: Types.ObjectId;
+  weight?: string;
+  size?: string;
   name: string;
   slug: string;
   sku: string;

@@ -13,6 +13,7 @@ import { notifyLowStockAdmins } from "./inventory.notification";
 
 type TAdjustStockPayload = {
   productId: string;
+  variantId?: string;
   movementType: "increase" | "decrease";
   quantity: number;
   reason: string;
@@ -121,63 +122,150 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
         throw new AppError(httpStatus.NOT_FOUND, "Product not found");
       }
 
-      const previousStock = product.stockQuantity;
+      const hasVariants =
+        Array.isArray(product.variants) && product.variants.length > 0;
+      let targetVariant: (typeof product.variants)[0] | undefined;
 
-      const resultingStock =
-        payload.movementType === INVENTORY_MOVEMENT_TYPE.INCREASE
-          ? previousStock + payload.quantity
-          : previousStock - payload.quantity;
-
-      if (resultingStock < 0) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          `Insufficient stock. Available quantity: ${previousStock}`,
+      if (payload.variantId) {
+        if (!Types.ObjectId.isValid(payload.variantId)) {
+          throw new AppError(httpStatus.BAD_REQUEST, "Invalid variant ID");
+        }
+        targetVariant = product.variants?.find(
+          (v) => v._id?.toString() === payload.variantId,
         );
+        if (!targetVariant) {
+          throw new AppError(
+            httpStatus.NOT_FOUND,
+            "Product variant not found",
+          );
+        }
       }
 
-      // Conditional update prevents a concurrent request from
-      // changing stock based on an outdated quantity.
-      const updatedProduct = await Product.findOneAndUpdate(
-        {
-          _id: product._id,
-          stockQuantity: previousStock,
-        },
-        {
-          $set: { stockQuantity: resultingStock },
-        },
-        {
-          new: true,
-          runValidators: true,
-          session,
-        },
-      );
+      let updatedProduct: HydratedDocument<TProduct> | null = null;
+      let previousStock: number;
+      let resultingStock: number;
 
-      if (!updatedProduct) {
-        throw new AppError(
-          httpStatus.CONFLICT,
-          "Stock changed during this adjustment. Please retry.",
-        );
-      }
+      if (targetVariant) {
+        previousStock = targetVariant.stockQuantity;
+        const delta =
+          payload.movementType === INVENTORY_MOVEMENT_TYPE.INCREASE
+            ? payload.quantity
+            : -payload.quantity;
+        resultingStock = previousStock + delta;
 
-      const [movement] = await InventoryMovement.create(
-        [
+        if (resultingStock < 0) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Insufficient stock for "${product.name} (${targetVariant.size})". Available quantity: ${previousStock}`,
+          );
+        }
+
+        updatedProduct = await Product.findOneAndUpdate(
           {
-            productId: product._id,
-            movementType: payload.movementType,
-            quantity: payload.quantity,
-            previousStock,
-            resultingStock,
-            reason,
-            performedBy: payload.performedBy,
+            _id: product._id,
+            "variants._id": targetVariant._id,
+            "variants.stockQuantity": previousStock,
           },
-        ],
-        { session },
-      );
+          {
+            $inc: {
+              "variants.$.stockQuantity": delta,
+              stockQuantity: delta,
+            },
+          },
+          {
+            new: true,
+            runValidators: true,
+            session,
+          },
+        );
 
-      result = {
-        product: updatedProduct,
-        movement,
-      };
+        if (!updatedProduct) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            "Stock changed during this adjustment. Please retry.",
+          );
+        }
+
+        const [movement] = await InventoryMovement.create(
+          [
+            {
+              productId: product._id,
+              variantId: targetVariant._id,
+              variantSize: targetVariant.size,
+              movementType: payload.movementType,
+              quantity: payload.quantity,
+              previousStock,
+              resultingStock,
+              reason: `${reason} (${targetVariant.size})`,
+              performedBy: payload.performedBy,
+            },
+          ],
+          { session },
+        );
+
+        result = {
+          product: updatedProduct,
+          movement,
+        };
+      } else {
+        previousStock = product.stockQuantity;
+
+        resultingStock =
+          payload.movementType === INVENTORY_MOVEMENT_TYPE.INCREASE
+            ? previousStock + payload.quantity
+            : previousStock - payload.quantity;
+
+        if (resultingStock < 0) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Insufficient stock. Available quantity: ${previousStock}`,
+          );
+        }
+
+        // Conditional update prevents a concurrent request from
+        // changing stock based on an outdated quantity.
+        updatedProduct = await Product.findOneAndUpdate(
+          {
+            _id: product._id,
+            stockQuantity: previousStock,
+          },
+          {
+            $set: { stockQuantity: resultingStock },
+          },
+          {
+            new: true,
+            runValidators: true,
+            session,
+          },
+        );
+
+        if (!updatedProduct) {
+          throw new AppError(
+            httpStatus.CONFLICT,
+            "Stock changed during this adjustment. Please retry.",
+          );
+        }
+
+        const [movement] = await InventoryMovement.create(
+          [
+            {
+              productId: product._id,
+              movementType: payload.movementType,
+              quantity: payload.quantity,
+              previousStock,
+              resultingStock,
+              reason,
+              performedBy: payload.performedBy,
+            },
+          ],
+          { session },
+        );
+
+        result = {
+          product: updatedProduct,
+          movement,
+        };
+      }
     });
 
     if (!result) {

@@ -34,6 +34,34 @@ const productSEOSchema = z.object({
 
 const productDescriptionSchema = z.record(z.string(), z.unknown());
 
+export const productVariantValidationSchema = z
+  .object({
+    _id: z.string().optional(),
+    weight: z.string().trim().optional(),
+    size: z.string().trim().optional(),
+    price: z.number().finite().positive("Variant price must be greater than 0"),
+    costPrice: z.number().finite().nonnegative().optional().default(0),
+    sku: z.string().trim().optional(),
+    stockQuantity: z
+      .number()
+      .int("Stock quantity must be a whole number")
+      .nonnegative("Stock quantity cannot be negative"),
+    lowStockThreshold: z
+      .number()
+      .int("Low stock threshold must be a whole number")
+      .nonnegative()
+      .optional()
+      .default(5),
+  })
+  .refine(
+    (data) =>
+      Boolean(
+        (data.weight && data.weight.trim()) ||
+          (data.size && data.size.trim()),
+      ),
+    { message: "Variant weight is required" },
+  );
+
 const createProductValidationSchema = z.object({
   body: z.object({
     name: z.string().trim().min(1, "Product name is required"),
@@ -57,11 +85,26 @@ const createProductValidationSchema = z.object({
 
     gallery: z.array(productImageSchema),
 
-    price: z.number().finite().nonnegative(),
+    variants: z
+      .array(productVariantValidationSchema)
+      .optional()
+      .default([])
+      .refine(
+        (variants) => {
+          if (!variants || variants.length === 0) return true;
+          const weights = variants.map((v) =>
+            (v.weight || v.size || "").trim().toLowerCase(),
+          );
+          return new Set(weights).size === weights.length;
+        },
+        { message: "Duplicate variant weights are not allowed" },
+      ),
 
-    costPrice: z.number().finite().nonnegative(),
+    price: z.number().finite().nonnegative().optional().default(0),
 
-    weight: z.number().finite().nonnegative(),
+    costPrice: z.number().finite().nonnegative().optional().default(0),
+
+    weight: z.number().finite().nonnegative().optional().default(0),
 
     tdsUrl: z.string().url("TDS URL must be a valid URL"),
 
@@ -70,9 +113,9 @@ const createProductValidationSchema = z.object({
       .trim()
       .min(1, "TDS public ID is required"),
 
-    stockQuantity: z.number().int().nonnegative(),
+    stockQuantity: z.number().int().nonnegative().optional().default(0),
 
-    lowStockThreshold: z.number().int().nonnegative(),
+    lowStockThreshold: z.number().int().nonnegative().optional().default(5),
 
     status: z.enum([PRODUCT_STATUS.DRAFT, PRODUCT_STATUS.PUBLISHED]),
 
@@ -104,6 +147,20 @@ const updateProductValidationSchema = z.object({
     primaryImage: productImageSchema.optional(),
 
     gallery: z.array(productImageSchema).optional(),
+
+    variants: z
+      .array(productVariantValidationSchema)
+      .optional()
+      .refine(
+        (variants) => {
+          if (!variants || variants.length === 0) return true;
+          const weights = variants.map((v) =>
+            (v.weight || v.size || "").trim().toLowerCase(),
+          );
+          return new Set(weights).size === weights.length;
+        },
+        { message: "Duplicate variant weights are not allowed" },
+      ),
 
     price: z.number().finite().nonnegative().optional(),
 

@@ -7,6 +7,9 @@ export type TInventoryMovementType =
 
 export type TInventoryMovement = {
   productId: Types.ObjectId;
+  variantId?: Types.ObjectId;
+  variantWeight?: string;
+  variantSize?: string;
   movementType: TInventoryMovementType;
   quantity: number;
   previousStock: number;

@@ -34,6 +34,7 @@ import type {
 type TCreateOrderPayload = {
   items: {
     productId: string;
+    variantId?: string;
     quantity: number;
   }[];
   customer: {
@@ -84,8 +85,11 @@ const createOrder = async (
     );
   }
 
-  // Merge duplicate product IDs before validating stock.
-  const requestedQuantities = new Map<string, number>();
+  // Merge duplicate product ID + variant ID combinations before validating stock.
+  const requestedItems = new Map<
+    string,
+    { productId: string; variantId?: string; quantity: number }
+  >();
 
   for (const item of payload.items) {
     if (!Types.ObjectId.isValid(item.productId)) {
@@ -95,18 +99,29 @@ const createOrder = async (
       );
     }
 
-    const productId = item.productId.toLowerCase();
-    const combinedQuantity =
-      (requestedQuantities.get(productId) ?? 0) + item.quantity;
+    if (item.variantId && !Types.ObjectId.isValid(item.variantId)) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Invalid variant ID",
+      );
+    }
+
+    const key = `${item.productId.toLowerCase()}:${item.variantId ?? ""}`;
+    const existing = requestedItems.get(key);
+    const combinedQuantity = (existing?.quantity ?? 0) + item.quantity;
 
     if (combinedQuantity > 99) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Combined quantity for a product cannot exceed 99",
+        "Combined quantity for an item cannot exceed 99",
       );
     }
 
-    requestedQuantities.set(productId, combinedQuantity);
+    requestedItems.set(key, {
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: combinedQuantity,
+    });
   }
 
   const session = await mongoose.startSession();
@@ -128,20 +143,20 @@ const createOrder = async (
       // Clear alerts so a retry cannot create duplicate emails.
       lowStockAlerts.length = 0;
 
-      const productIds = [...requestedQuantities.keys()].map(
-        (id) => new Types.ObjectId(id),
-      );
+      const uniqueProductIds = [
+        ...new Set([...requestedItems.values()].map((i) => i.productId)),
+      ].map((id) => new Types.ObjectId(id));
 
       const products = await Product.find({
-        _id: { $in: productIds },
+        _id: { $in: uniqueProductIds },
         status: PRODUCT_STATUS.PUBLISHED,
       })
         .select(
-          "_id name slug sku primaryImage price stockQuantity lowStockThreshold",
+          "_id name slug sku primaryImage price stockQuantity lowStockThreshold variants",
         )
         .session(session);
 
-      if (products.length !== productIds.length) {
+      if (products.length !== uniqueProductIds.length) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
           "One or more products are unavailable",
@@ -154,8 +169,8 @@ const createOrder = async (
 
       const items = [];
 
-      for (const [productId, quantity] of requestedQuantities) {
-        const product = productMap.get(productId);
+      for (const req of requestedItems.values()) {
+        const product = productMap.get(req.productId);
 
         if (!product) {
           throw new AppError(
@@ -164,63 +179,160 @@ const createOrder = async (
           );
         }
 
-        // Conditional stock deduction prevents overselling.
-        const previousStock = product.stockQuantity;
+        const hasVariants =
+          Array.isArray(product.variants) && product.variants.length > 0;
+        let targetVariant: (typeof product.variants)[0] | undefined;
 
-        const updatedProduct = await Product.findOneAndUpdate(
-          {
-            _id: product._id,
-            status: PRODUCT_STATUS.PUBLISHED,
-            stockQuantity: { $gte: quantity },
-          },
-          {
-            $inc: { stockQuantity: -quantity },
-          },
-          {
-            new: true,
-            runValidators: true,
-            session,
-          },
-        );
+        if (hasVariants) {
+          if (req.variantId) {
+            targetVariant = product.variants.find(
+              (v) => v._id?.toString() === req.variantId,
+            );
+            if (!targetVariant) {
+              throw new AppError(
+                httpStatus.BAD_REQUEST,
+                `Selected weight is no longer available for "${product.name}".`,
+              );
+            }
+          } else if (product.variants.length === 1) {
+            targetVariant = product.variants[0];
+          } else {
+            throw new AppError(
+              httpStatus.BAD_REQUEST,
+              `Please select a weight for "${product.name}".`,
+            );
+          }
+        }
 
-        if (!updatedProduct) {
-          throw new AppError(
-            httpStatus.CONFLICT,
-            `Insufficient stock for "${product.name}". Please refresh your cart.`,
+        let updatedProduct;
+        let previousStock: number;
+        let resultingStock: number;
+        let unitPrice: number;
+        let itemSku: string;
+        let variantWeight = "";
+
+        if (targetVariant) {
+          previousStock = targetVariant.stockQuantity;
+          variantWeight = targetVariant.weight || targetVariant.size || "";
+
+          if (previousStock < req.quantity) {
+            throw new AppError(
+              httpStatus.CONFLICT,
+              `Insufficient stock for "${product.name} (${variantWeight})". Available quantity: ${previousStock}`,
+            );
+          }
+
+          updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: product._id,
+              status: PRODUCT_STATUS.PUBLISHED,
+              "variants._id": targetVariant._id,
+              "variants.stockQuantity": { $gte: req.quantity },
+            },
+            {
+              $inc: {
+                "variants.$.stockQuantity": -req.quantity,
+                stockQuantity: -req.quantity,
+              },
+            },
+            {
+              new: true,
+              runValidators: true,
+              session,
+            },
           );
+
+          if (!updatedProduct) {
+            throw new AppError(
+              httpStatus.CONFLICT,
+              `Insufficient stock for "${product.name} (${variantWeight})". Please refresh your cart.`,
+            );
+          }
+
+          const updatedVariant = updatedProduct.variants?.find(
+            (v) => v._id?.toString() === targetVariant!._id?.toString(),
+          );
+          resultingStock = updatedVariant
+            ? updatedVariant.stockQuantity
+            : previousStock - req.quantity;
+          unitPrice = targetVariant.price;
+          itemSku = targetVariant.sku || product.sku;
+
+          const threshold =
+            targetVariant.lowStockThreshold ?? product.lowStockThreshold;
+          const crossedLowStockThreshold =
+            previousStock > threshold && resultingStock <= threshold;
+          const crossedOutOfStockThreshold =
+            previousStock > 0 && resultingStock <= 0;
+
+          if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
+            lowStockAlerts.push({
+              name: `${product.name} (${variantWeight})`,
+              sku: itemSku,
+              stockQuantity: resultingStock,
+              lowStockThreshold: threshold,
+            });
+          }
+        } else {
+          // Legacy product without variants
+          previousStock = product.stockQuantity;
+
+          updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: product._id,
+              status: PRODUCT_STATUS.PUBLISHED,
+              stockQuantity: { $gte: req.quantity },
+            },
+            {
+              $inc: { stockQuantity: -req.quantity },
+            },
+            {
+              new: true,
+              runValidators: true,
+              session,
+            },
+          );
+
+          if (!updatedProduct) {
+            throw new AppError(
+              httpStatus.CONFLICT,
+              `Insufficient stock for "${product.name}". Please refresh your cart.`,
+            );
+          }
+
+          resultingStock = updatedProduct.stockQuantity;
+          unitPrice = product.price;
+          itemSku = product.sku;
+
+          const crossedLowStockThreshold =
+            previousStock > product.lowStockThreshold &&
+            resultingStock <= product.lowStockThreshold;
+          const crossedOutOfStockThreshold =
+            previousStock > 0 && resultingStock <= 0;
+
+          if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
+            lowStockAlerts.push({
+              name: product.name,
+              sku: product.sku,
+              stockQuantity: resultingStock,
+              lowStockThreshold: product.lowStockThreshold,
+            });
+          }
         }
 
-        const resultingStock = updatedProduct.stockQuantity;
-
-        // Alert only when stock crosses from above the threshold
-        // to the threshold or below it.
-        const crossedLowStockThreshold =
-          previousStock > product.lowStockThreshold &&
-          resultingStock <= product.lowStockThreshold;
-
-        const crossedOutOfStockThreshold =
-          previousStock > 0 && resultingStock <= 0;
-
-        if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
-          lowStockAlerts.push({
-            name: product.name,
-            sku: product.sku,
-            stockQuantity: resultingStock,
-            lowStockThreshold: product.lowStockThreshold,
-          });
-        }
-
-        const unitPrice = product.price;
-        const lineTotal = Number((unitPrice * quantity).toFixed(2));
+        const lineTotal = Number((unitPrice * req.quantity).toFixed(2));
 
         items.push({
           productId: product._id,
+          variantId: targetVariant?._id,
+          weight: variantWeight,
+          size: variantWeight,
           name: product.name,
           slug: product.slug,
-          sku: product.sku,
+          sku: itemSku,
           primaryImage: product.primaryImage,
           unitPrice,
-          quantity,
+          quantity: req.quantity,
           lineTotal,
         });
 
@@ -228,11 +340,16 @@ const createOrder = async (
           [
             {
               productId: product._id,
+              variantId: targetVariant?._id,
+              variantWeight,
+              variantSize: variantWeight,
               movementType: INVENTORY_MOVEMENT_TYPE.DECREASE,
-              quantity,
+              quantity: req.quantity,
               previousStock,
               resultingStock,
-              reason: "Customer order placed",
+              reason: variantWeight
+                ? `Customer order placed (${variantWeight})`
+                : "Customer order placed",
               performedBy: user.id,
             },
           ],
@@ -570,23 +687,72 @@ const cancelOrder = async (
           );
         }
 
-        const previousStock = product.stockQuantity;
-        const resultingStock = previousStock + item.quantity;
+        let updatedProduct;
+        let previousStock: number;
+        let resultingStock: number;
 
-        const updatedProduct = await Product.findOneAndUpdate(
-          {
-            _id: item.productId,
-            stockQuantity: previousStock,
-          },
-          {
-            $inc: { stockQuantity: item.quantity },
-          },
-          {
-            new: true,
-            runValidators: true,
-            session,
-          },
-        );
+        if (item.variantId) {
+          const existingVariant = product.variants?.find(
+            (v) => v._id?.toString() === item.variantId?.toString(),
+          );
+
+          if (existingVariant) {
+            previousStock = existingVariant.stockQuantity;
+
+            updatedProduct = await Product.findOneAndUpdate(
+              {
+                _id: item.productId,
+                "variants._id": item.variantId,
+              },
+              {
+                $inc: {
+                  "variants.$.stockQuantity": item.quantity,
+                  stockQuantity: item.quantity,
+                },
+              },
+              {
+                new: true,
+                runValidators: true,
+                session,
+              },
+            );
+
+            const restoredVariant = updatedProduct?.variants?.find(
+              (v) => v._id?.toString() === item.variantId?.toString(),
+            );
+            resultingStock = restoredVariant
+              ? restoredVariant.stockQuantity
+              : previousStock + item.quantity;
+          } else {
+            previousStock = product.stockQuantity;
+            updatedProduct = await Product.findOneAndUpdate(
+              { _id: item.productId },
+              { $inc: { stockQuantity: item.quantity } },
+              { new: true, runValidators: true, session },
+            );
+            resultingStock = updatedProduct
+              ? updatedProduct.stockQuantity
+              : previousStock + item.quantity;
+          }
+        } else {
+          previousStock = product.stockQuantity;
+          resultingStock = previousStock + item.quantity;
+
+          updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: item.productId,
+              stockQuantity: previousStock,
+            },
+            {
+              $inc: { stockQuantity: item.quantity },
+            },
+            {
+              new: true,
+              runValidators: true,
+              session,
+            },
+          );
+        }
 
         if (!updatedProduct) {
           throw new AppError(
@@ -599,6 +765,9 @@ const cancelOrder = async (
           [
             {
               productId: item.productId,
+              variantId: item.variantId,
+              variantWeight: item.weight || item.size || "",
+              variantSize: item.size || item.weight || "",
               movementType: INVENTORY_MOVEMENT_TYPE.INCREASE,
               quantity: item.quantity,
               previousStock,

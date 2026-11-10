@@ -9,6 +9,17 @@ export type TProductImage = {
   alt: string;
 };
 
+export type TProductVariant = {
+  _id?: Types.ObjectId;
+  weight?: string;
+  size?: string;
+  price: number;
+  costPrice?: number;
+  sku?: string;
+  stockQuantity: number;
+  lowStockThreshold?: number;
+};
+
 export type TProductSEO = {
   metaTitle: string;
   metaDescription: string;
@@ -31,6 +42,8 @@ export type TProduct = {
 
   primaryImage: TProductImage;
   gallery: TProductImage[];
+
+  variants: TProductVariant[];
 
   price: number;
   costPrice: number;

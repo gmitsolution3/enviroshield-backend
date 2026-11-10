@@ -9,6 +9,7 @@ const adjustStock = catchAsync(
   async (req: AuthenticatedRequest, res) => {
     const result = await inventoryService.adjustStock({
       productId: req.params.productId as string,
+      variantId: req.body.variantId,
       movementType: req.body.movementType,
       quantity: req.body.quantity,
       reason: req.body.reason,

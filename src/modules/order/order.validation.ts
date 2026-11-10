@@ -10,6 +10,11 @@ const createOrderValidationSchema = z.object({
             .string()
             .regex(/^[0-9a-fA-F]{24}$/, "Invalid product ID"),
 
+          variantId: z
+            .string()
+            .regex(/^[0-9a-fA-F]{24}$/, "Invalid variant ID")
+            .optional(),
+
           quantity: z
             .number()
             .int("Quantity must be a whole number")

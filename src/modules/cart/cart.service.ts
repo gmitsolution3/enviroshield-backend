@@ -6,6 +6,7 @@ import Product from "../product/product.model";
 
 type TCartItemInput = {
   productId: string;
+  variantId?: string;
   quantity: number;
 };
 
@@ -14,36 +15,44 @@ type TCalculateCartPayload = {
 };
 
 const calculateCart = async (payload: TCalculateCartPayload) => {
-  // Combine duplicate product IDs before checking stock.
-  const requestedQuantities = new Map<string, number>();
+  // Combine duplicate product ID + variant ID items before checking stock.
+  const requestedItems = new Map<
+    string,
+    { productId: string; variantId?: string; quantity: number }
+  >();
 
   for (const item of payload.items) {
-    const productId = item.productId.toLowerCase();
-
-    const combinedQuantity =
-      (requestedQuantities.get(productId) ?? 0) + item.quantity;
+    const key = `${item.productId.toLowerCase()}:${item.variantId ?? ""}`;
+    const existing = requestedItems.get(key);
+    const combinedQuantity = (existing?.quantity ?? 0) + item.quantity;
 
     if (combinedQuantity > 99) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Combined quantity for a product cannot exceed 99",
+        "Combined quantity for an item cannot exceed 99",
       );
     }
 
-    requestedQuantities.set(productId, combinedQuantity);
+    requestedItems.set(key, {
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: combinedQuantity,
+    });
   }
 
-  const productIds = [...requestedQuantities.keys()];
+  const uniqueProductIds = [
+    ...new Set([...requestedItems.values()].map((i) => i.productId)),
+  ];
 
   const products = await Product.find({
     _id: {
-      $in: productIds.map((id) => new Types.ObjectId(id)),
+      $in: uniqueProductIds.map((id) => new Types.ObjectId(id)),
     },
     status: PRODUCT_STATUS.PUBLISHED,
-  }).select("_id name slug sku primaryImage price stockQuantity");
+  }).select("_id name slug sku primaryImage price stockQuantity variants");
 
   // Draft, deleted, and otherwise unavailable products are rejected.
-  if (products.length !== productIds.length) {
+  if (products.length !== uniqueProductIds.length) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       "One or more products are unavailable",
@@ -54,9 +63,8 @@ const calculateCart = async (payload: TCalculateCartPayload) => {
     products.map((product) => [product._id.toString(), product]),
   );
 
-  const items = productIds.map((productId) => {
-    const product = productMap.get(productId);
-    const quantity = requestedQuantities.get(productId)!;
+  const items = [...requestedItems.values()].map((requested) => {
+    const product = productMap.get(requested.productId);
 
     if (!product) {
       throw new AppError(
@@ -65,24 +73,61 @@ const calculateCart = async (payload: TCalculateCartPayload) => {
       );
     }
 
-    if (product.stockQuantity < quantity) {
+    const hasVariants =
+      Array.isArray(product.variants) && product.variants.length > 0;
+    let targetVariant: (typeof product.variants)[0] | undefined;
+
+    if (hasVariants) {
+      if (requested.variantId) {
+        targetVariant = product.variants.find(
+          (v) => v._id?.toString() === requested.variantId,
+        );
+        if (!targetVariant) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Selected weight is no longer available for "${product.name}".`,
+          );
+        }
+      } else if (product.variants.length === 1) {
+        targetVariant = product.variants[0];
+      } else {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Please select a weight for "${product.name}".`,
+        );
+      }
+    }
+
+    const availableStock = targetVariant
+      ? targetVariant.stockQuantity
+      : product.stockQuantity;
+
+    const variantLabel = targetVariant
+      ? targetVariant.weight || targetVariant.size || ""
+      : "";
+
+    if (availableStock < requested.quantity) {
+      const weightLabel = variantLabel ? ` (${variantLabel})` : "";
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        `Insufficient stock for "${product.name}". Available quantity: ${product.stockQuantity}`,
+        `Insufficient stock for "${product.name}${weightLabel}". Available quantity: ${availableStock}`,
       );
     }
 
-    const unitPrice = product.price;
-    const lineTotal = Number((unitPrice * quantity).toFixed(2));
+    const unitPrice = targetVariant ? targetVariant.price : product.price;
+    const lineTotal = Number((unitPrice * requested.quantity).toFixed(2));
 
     return {
       productId: product._id.toString(),
+      variantId: targetVariant?._id ? targetVariant._id.toString() : undefined,
+      weight: variantLabel,
+      size: variantLabel,
       name: product.name,
       slug: product.slug,
-      sku: product.sku,
+      sku: targetVariant?.sku || product.sku,
       primaryImage: product.primaryImage,
       unitPrice,
-      quantity,
+      quantity: requested.quantity,
       lineTotal,
     };
   });

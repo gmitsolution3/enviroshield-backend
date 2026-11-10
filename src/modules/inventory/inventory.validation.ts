@@ -4,6 +4,11 @@ import { INVENTORY_MOVEMENT_TYPE } from "./inventory.constant";
 
 const adjustStockValidationSchema = z.object({
   body: z.object({
+    variantId: z
+      .string()
+      .regex(/^[0-9a-fA-F]{24}$/, "Invalid variant ID")
+      .optional(),
+
     movementType: z.enum([
       INVENTORY_MOVEMENT_TYPE.INCREASE,
       INVENTORY_MOVEMENT_TYPE.DECREASE,

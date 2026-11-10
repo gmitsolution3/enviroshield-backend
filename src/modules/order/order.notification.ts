@@ -60,7 +60,7 @@ const notifyOrderPlaced = async (order: TOrder): Promise<void> => {
           <td style="padding:12px;border-bottom:1px solid #edf0f2;color:#18384a;">
             ${escapeHtml(item.name)}
             <div style="color:#64748b;font-size:12px;margin-top:4px;">
-              SKU: ${escapeHtml(item.sku)} · Qty: ${item.quantity}
+              SKU: ${escapeHtml(item.sku)}${item.weight || item.size ? ` · Weight: ${escapeHtml(item.weight || item.size || "")}` : ""} · Qty: ${item.quantity}
             </div>
           </td>
           <td align="right" style="padding:12px;border-bottom:1px solid #edf0f2;color:#00334e;font-weight:700;white-space:nowrap;">
@@ -161,7 +161,7 @@ const notifyOrderPlaced = async (order: TOrder): Promise<void> => {
     "Items:",
     ...order.items.map(
       (item) =>
-        `- ${item.name} (SKU: ${item.sku}) x ${item.quantity}: ${formatBDT(item.lineTotal)}`,
+        `- ${item.name} (SKU: ${item.sku}${item.weight || item.size ? `, Weight: ${item.weight || item.size}` : ""}) x ${item.quantity}: ${formatBDT(item.lineTotal)}`,
     ),
     "",
     `Subtotal: ${formatBDT(order.subtotal)}`,

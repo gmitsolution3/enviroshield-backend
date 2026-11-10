@@ -14,6 +14,23 @@ const inventoryMovementSchema = new Schema<TInventoryMovement>(
       index: true,
     },
 
+    variantId: {
+      type: Schema.Types.ObjectId,
+      default: null,
+    },
+
+    variantWeight: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    variantSize: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     movementType: {
       type: String,
       enum: Object.values(INVENTORY_MOVEMENT_TYPE),

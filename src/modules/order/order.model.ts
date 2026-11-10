@@ -15,6 +15,20 @@ const orderItemSchema = new Schema<TOrderItem>(
       ref: "Product",
       required: true,
     },
+    variantId: {
+      type: Schema.Types.ObjectId,
+      default: null,
+    },
+    weight: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    size: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     name: {
       type: String,
       required: true,
