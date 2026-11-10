@@ -2,6 +2,7 @@ import httpStatus from "http-status";
 import { TPaginationOptions } from "../../types/common";
 import { AppError } from "../../utils/AppError";
 import { calculatePagination } from "../../utils/calculatePagination";
+import { generateProductSku, generateVariantSku } from "../../utils/generateSku";
 import Category from "../category/category.model";
 import { notifyLowStockAdmins } from "../inventory/inventory.notification";
 import { PRODUCT_STATUS } from "./product.constant";
@@ -21,6 +22,19 @@ type TProductQuery = TPaginationOptions & {
 };
 
 const createProduct = async (payload: TProduct) => {
+  if (!payload.sku || !payload.sku.trim()) {
+    const baseSku = generateProductSku(payload.name);
+    let candidate = baseSku;
+    let counter = 1;
+    while (await Product.findOne({ sku: candidate })) {
+      candidate = `${baseSku}-${String(counter).padStart(2, "0")}`;
+      counter++;
+    }
+    payload.sku = candidate;
+  } else {
+    payload.sku = payload.sku.trim().toUpperCase();
+  }
+
   const existingProduct = await Product.findOne({
     $or: [{ slug: payload.slug }, { sku: payload.sku }],
   });
@@ -46,12 +60,17 @@ const createProduct = async (payload: TProduct) => {
   }
 
   if (payload.variants && payload.variants.length > 0) {
-    payload.variants = payload.variants.map((v) => {
+    payload.variants = payload.variants.map((v, index) => {
       const label = (v.weight || v.size || "").trim();
+      const variantSku =
+        v.sku && v.sku.trim()
+          ? v.sku.trim().toUpperCase()
+          : generateVariantSku(payload.sku, label, index + 1);
       return {
         ...v,
         weight: label,
         size: label,
+        sku: variantSku,
       };
     });
     const weights = payload.variants.map((v) =>
@@ -250,12 +269,18 @@ const updateProduct = async (productId: string, payload: Partial<TProduct>) => {
   }
 
   if (payload.variants && payload.variants.length > 0) {
-    payload.variants = payload.variants.map((v) => {
+    const effectiveProductSku = (payload.sku || existingProduct.sku || "ENV").trim();
+    payload.variants = payload.variants.map((v, index) => {
       const label = (v.weight || v.size || "").trim();
+      const variantSku =
+        v.sku && v.sku.trim()
+          ? v.sku.trim().toUpperCase()
+          : generateVariantSku(effectiveProductSku, label, index + 1);
       return {
         ...v,
         weight: label,
         size: label,
+        sku: variantSku,
       };
     });
     const weights = payload.variants.map((v) =>

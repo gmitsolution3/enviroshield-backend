@@ -68,7 +68,7 @@ const createProductValidationSchema = z.object({
 
     slug: z.string().trim().min(1, "Product slug is required"),
 
-    sku: z.string().trim().min(1, "Product SKU is required"),
+    sku: z.string().trim().optional(),
 
     categoryId: z
       .string()
