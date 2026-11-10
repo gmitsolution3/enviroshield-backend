@@ -6,8 +6,11 @@ const adjustStockValidationSchema = z.object({
   body: z.object({
     variantId: z
       .string()
+      .trim()
       .regex(/^[0-9a-fA-F]{24}$/, "Invalid variant ID")
-      .optional(),
+      .optional()
+      .or(z.literal(""))
+      .nullable(),
 
     movementType: z.enum([
       INVENTORY_MOVEMENT_TYPE.INCREASE,

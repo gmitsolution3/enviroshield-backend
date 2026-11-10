@@ -46,9 +46,9 @@ export type TProduct = {
   variants: TProductVariant[];
 
   price: number;
-  costPrice: number;
+  costPrice?: number;
 
-  weight: number;
+  weight?: number;
   tdsUrl: string;
   tdsPublicId: string;
 

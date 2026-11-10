@@ -88,12 +88,6 @@ const createProduct = async (payload: TProduct) => {
       (sum, v) => sum + (v.stockQuantity || 0),
       0,
     );
-
-    if (!payload.weight || payload.weight === 0) {
-      const firstWeight = payload.variants[0]?.weight || "";
-      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
-      payload.weight = !isNaN(parsed) && parsed > 0 ? parsed : 0;
-    }
   } else if (payload.status === PRODUCT_STATUS.PUBLISHED) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -170,7 +164,7 @@ const getProducts = async (query: TProductQuery, publicOnly = false) => {
     .limit(limit);
 
   if (publicOnly) {
-    productQuery = productQuery.select("-costPrice");
+    productQuery = productQuery.select("-costPrice -variants.costPrice");
   }
 
   const [products, total] = await Promise.all([
@@ -215,7 +209,7 @@ const getPublishedProductBySlug = async (slug: string) => {
     slug,
     status: PRODUCT_STATUS.PUBLISHED,
   })
-    .select("-costPrice")
+    .select("-costPrice -variants.costPrice")
     .populate("categoryId", "name slug");
 
   if (!product) {
@@ -298,18 +292,6 @@ const updateProduct = async (productId: string, payload: Partial<TProduct>) => {
       (sum, v) => sum + (v.stockQuantity || 0),
       0,
     );
-
-    if (
-      payload.weight === undefined ||
-      payload.weight === null ||
-      payload.weight === 0
-    ) {
-      const firstWeight = payload.variants[0]?.weight || "";
-      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
-      if (!isNaN(parsed) && parsed > 0) {
-        payload.weight = parsed;
-      }
-    }
   }
 
   const nextStatus = payload.status ?? existingProduct.status;

@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import mongoose, { Types } from "mongoose";
 import { cartService } from "../cart/cart.service";
 import { orderService } from "../order/order.service";
+import { inventoryService } from "../inventory/inventory.service";
+import { INVENTORY_MOVEMENT_TYPE } from "../inventory/inventory.constant";
 import Product from "../product/product.model";
 import InventoryMovement from "../inventory/inventory.model";
 import Order from "../order/order.model";
@@ -227,6 +229,92 @@ describe("Product Variant System Unit & Integration Tests", () => {
       Order.create = originalOrderCreate;
       Order.findById = originalOrderFindById;
       orderNotification.notifyOrderPlaced = originalNotifyOrderPlaced;
+      InventoryMovement.create = originalMovementCreate;
+      mongoose.startSession = originalStartSession;
+    }
+  });
+
+  it("adjustStock requires variantId when product has variants and updates variant stock", async () => {
+    const originalFindById = Product.findById;
+    const originalFindOneAndUpdate = Product.findOneAndUpdate;
+    const originalMovementCreate = InventoryMovement.create;
+    const originalStartSession = mongoose.startSession;
+
+    let updatedFilter: any = null;
+    let updatedUpdate: any = null;
+    let savedMovements: any[] = [];
+
+    try {
+      Product.findById = (() => ({
+        session: () => Promise.resolve(mockProductWithVariants),
+      })) as any;
+
+      Product.findOneAndUpdate = ((filter: any, update: any) => {
+        updatedFilter = filter;
+        updatedUpdate = update;
+        return {
+          ...mockProductWithVariants,
+          stockQuantity: 50,
+        };
+      }) as any;
+
+      InventoryMovement.create = ((docs: any[]) => {
+        savedMovements = docs;
+        return docs;
+      }) as any;
+
+      mongoose.startSession = (async () => ({
+        withTransaction: async (fn: () => Promise<any>) => fn(),
+        endSession: async () => {},
+      })) as any;
+
+      // 1. Should fail when variantId is not provided
+      await assert.rejects(
+        async () => {
+          await inventoryService.adjustStock({
+            productId: MOCK_PRODUCT_ID.toString(),
+            movementType: INVENTORY_MOVEMENT_TYPE.INCREASE,
+            quantity: 5,
+            reason: "Batch restock",
+            performedBy: "507f1f77bcf86cd799439099",
+          });
+        },
+        {
+          message: "Please select a product variant to adjust stock",
+        },
+      );
+
+      // 2. Should succeed when variantId is provided
+      const result = await inventoryService.adjustStock({
+        productId: MOCK_PRODUCT_ID.toString(),
+        variantId: VARIANT_2_ID.toString(),
+        movementType: INVENTORY_MOVEMENT_TYPE.INCREASE,
+        quantity: 5,
+        reason: "Batch restock",
+        performedBy: "507f1f77bcf86cd799439099",
+      });
+
+      assert.ok(result, "Stock adjustment should succeed");
+      assert.equal(
+        updatedFilter["variants._id"].toString(),
+        VARIANT_2_ID.toString(),
+        "Must target the specific variant",
+      );
+      assert.deepEqual(
+        updatedUpdate.$inc,
+        {
+          "variants.$.stockQuantity": 5,
+          stockQuantity: 5,
+        },
+        "Must increment variant stockQuantity and total stockQuantity by 5",
+      );
+      assert.equal(savedMovements.length, 1);
+      assert.equal(savedMovements[0].variantWeight, "3.64 Ltr");
+      assert.equal(savedMovements[0].variantSize, "3.64 Ltr");
+      assert.equal(savedMovements[0].quantity, 5);
+    } finally {
+      Product.findById = originalFindById;
+      Product.findOneAndUpdate = originalFindOneAndUpdate;
       InventoryMovement.create = originalMovementCreate;
       mongoose.startSession = originalStartSession;
     }

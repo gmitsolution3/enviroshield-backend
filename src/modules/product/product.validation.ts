@@ -102,10 +102,6 @@ const createProductValidationSchema = z.object({
 
     price: z.number().finite().nonnegative().optional().default(0),
 
-    costPrice: z.number().finite().nonnegative().optional().default(0),
-
-    weight: z.number().finite().nonnegative().optional().default(0),
-
     tdsUrl: z.string().url("TDS URL must be a valid URL"),
 
     tdsPublicId: z
@@ -163,10 +159,6 @@ const updateProductValidationSchema = z.object({
       ),
 
     price: z.number().finite().nonnegative().optional(),
-
-    costPrice: z.number().finite().nonnegative().optional(),
-
-    weight: z.number().finite().nonnegative().optional(),
 
     tdsUrl: z.string().url("TDS URL must be a valid URL").optional(),
 
@@ -233,7 +225,6 @@ const productQuerySchema = z.object({
         "updatedAt",
         "publishedAt",
         "stockQuantity",
-        "weight",
       ])
       .optional(),
 

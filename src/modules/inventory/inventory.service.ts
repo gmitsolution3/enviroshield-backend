@@ -126,12 +126,14 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
         Array.isArray(product.variants) && product.variants.length > 0;
       let targetVariant: (typeof product.variants)[0] | undefined;
 
-      if (payload.variantId) {
-        if (!Types.ObjectId.isValid(payload.variantId)) {
+      const trimmedVariantId = payload.variantId?.trim();
+
+      if (trimmedVariantId) {
+        if (!Types.ObjectId.isValid(trimmedVariantId)) {
           throw new AppError(httpStatus.BAD_REQUEST, "Invalid variant ID");
         }
         targetVariant = product.variants?.find(
-          (v) => v._id?.toString() === payload.variantId,
+          (v) => v._id?.toString() === trimmedVariantId,
         );
         if (!targetVariant) {
           throw new AppError(
@@ -139,6 +141,11 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
             "Product variant not found",
           );
         }
+      } else if (hasVariants) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Please select a product variant to adjust stock",
+        );
       }
 
       let updatedProduct: HydratedDocument<TProduct> | null = null;
@@ -146,6 +153,8 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
       let resultingStock: number;
 
       if (targetVariant) {
+        const variantLabel =
+          targetVariant.weight || targetVariant.size || "Standard";
         previousStock = targetVariant.stockQuantity;
         const delta =
           payload.movementType === INVENTORY_MOVEMENT_TYPE.INCREASE
@@ -156,7 +165,7 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
         if (resultingStock < 0) {
           throw new AppError(
             httpStatus.BAD_REQUEST,
-            `Insufficient stock for "${product.name} (${targetVariant.size})". Available quantity: ${previousStock}`,
+            `Insufficient stock for "${product.name} (${variantLabel})". Available quantity: ${previousStock}`,
           );
         }
 
@@ -191,12 +200,13 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
             {
               productId: product._id,
               variantId: targetVariant._id,
-              variantSize: targetVariant.size,
+              variantWeight: targetVariant.weight || targetVariant.size || "",
+              variantSize: targetVariant.size || targetVariant.weight || "",
               movementType: payload.movementType,
               quantity: payload.quantity,
               previousStock,
               resultingStock,
-              reason: `${reason} (${targetVariant.size})`,
+              reason: `${reason} (${variantLabel})`,
               performedBy: payload.performedBy,
             },
           ],
@@ -580,6 +590,7 @@ const exportMovementHistoryCsv = async (): Promise<string> => {
   const headers = [
     "Movement ID",
     "Product ID",
+    "Variant",
     "Movement Type",
     "Quantity",
     "Previous Stock",
@@ -596,6 +607,7 @@ const exportMovementHistoryCsv = async (): Promise<string> => {
   const rows = movementsWithPerformers.map((movement) => [
     movement._id.toString(),
     movement.productId.toString(),
+    movement.variantWeight || movement.variantSize || "",
     movement.movementType,
     movement.quantity,
     movement.previousStock,

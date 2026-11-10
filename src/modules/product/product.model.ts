@@ -196,19 +196,6 @@ const productSchema = new Schema<TProduct>(
       min: 0,
     },
 
-    costPrice: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-
-    weight: {
-      type: Number,
-      required: false,
-      min: 0,
-      default: 0,
-    },
-
     tdsUrl: {
       type: String,
       required: true,
@@ -278,12 +265,6 @@ productSchema.pre("validate", function () {
       (sum, v) => sum + (v.stockQuantity || 0),
       0,
     );
-
-    if (this.weight === undefined || this.weight === null || this.weight === 0) {
-      const firstWeight = this.variants[0]?.weight || "";
-      const parsed = parseFloat(firstWeight.replace(/[^0-9.]/g, ""));
-      this.weight = !isNaN(parsed) && parsed > 0 ? parsed : 0;
-    }
   }
 });
 
