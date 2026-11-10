@@ -168,7 +168,6 @@ const productSchema = new Schema<TProduct>(
 
     gallery: {
       type: [productImageSchema],
-      required: true,
       default: [],
     },
 

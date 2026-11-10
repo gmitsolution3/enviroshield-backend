@@ -83,7 +83,7 @@ const createProductValidationSchema = z.object({
 
     primaryImage: productImageSchema,
 
-    gallery: z.array(productImageSchema),
+    gallery: z.array(productImageSchema).optional().default([]),
 
     variants: z
       .array(productVariantValidationSchema)
