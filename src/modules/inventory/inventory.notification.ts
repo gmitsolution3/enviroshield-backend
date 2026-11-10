@@ -70,6 +70,7 @@ export const notifyLowStockAdmins = async (
         : `Low Stock Alert: ${product.name}`,
       message: `${product.name} (SKU: ${product.sku}) has reached ${product.stockQuantity} units (threshold: ${product.lowStockThreshold}).`,
       entityType: NOTIFICATION_ENTITY_TYPE.PRODUCT,
+      entityId: product._id.toString(),
       actionUrl: '/dashboard/ecommerce/inventory',
       metadata: {
         sku: product.sku,
