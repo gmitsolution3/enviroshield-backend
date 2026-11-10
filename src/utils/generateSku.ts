@@ -25,17 +25,17 @@ export function generateProductSku(name: string, prefix = "ENV"): string {
   );
   const words = nonBrand.length > 0 ? nonBrand : allWords;
 
+  const cleanWord = (w: string) => {
+    const upper = w.toUpperCase();
+    return upper.length <= 6 ? upper : upper.slice(0, 5);
+  };
+
   let code = "";
   if (words.length === 1) {
-    const word = words[0].toUpperCase();
-    code = word.length <= 4 ? word : word.slice(0, 4);
-  } else if (words.length === 2) {
-    const w1 = words[0].toUpperCase().slice(0, 4);
-    const w2 = words[1].toUpperCase().slice(0, 4);
-    code = `${w1}-${w2}`;
+    code = cleanWord(words[0]);
   } else {
-    const w1 = words[0].toUpperCase().slice(0, 4);
-    const w2 = words[1].toUpperCase().slice(0, 4);
+    const w1 = cleanWord(words[0]);
+    const w2 = cleanWord(words[1]);
     code = `${w1}-${w2}`;
   }
 
