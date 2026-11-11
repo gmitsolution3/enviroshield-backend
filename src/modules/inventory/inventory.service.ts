@@ -112,6 +112,7 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
           movement: InstanceType<typeof InventoryMovement>;
         }
       | undefined;
+    let adjustedVariant: any = undefined;
 
     await session.withTransaction(async () => {
       const product = await Product.findById(
@@ -271,6 +272,7 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
           { session },
         );
 
+        adjustedVariant = targetVariant;
         result = {
           product: updatedProduct,
           movement,
@@ -285,11 +287,12 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
       );
     }
 
+    const threshold =
+      adjustedVariant?.lowStockThreshold ?? result.product.lowStockThreshold;
+
     const crossedLowStockThreshold =
-      result.movement.previousStock >
-        result.product.lowStockThreshold &&
-      result.movement.resultingStock <=
-        result.product.lowStockThreshold;
+      result.movement.previousStock > threshold &&
+      result.movement.resultingStock <= threshold;
 
     const crossedOutOfStockThreshold =
       result.movement.previousStock > 0 &&
@@ -297,11 +300,20 @@ const adjustStock = async (payload: TAdjustStockPayload) => {
 
     if (crossedLowStockThreshold || crossedOutOfStockThreshold) {
       try {
+        const variantLabel = adjustedVariant
+          ? adjustedVariant.weight || adjustedVariant.size || ""
+          : "";
+        const displayName = variantLabel
+          ? `${result.product.name} (${variantLabel})`
+          : result.product.name;
+        const displaySku = adjustedVariant?.sku || result.product.sku;
+
         await notifyLowStockAdmins({
-          name: result.product.name,
-          sku: result.product.sku,
-          stockQuantity: result.product.stockQuantity,
-          lowStockThreshold: result.product.lowStockThreshold,
+          name: displayName,
+          sku: displaySku,
+          stockQuantity: result.movement.resultingStock,
+          lowStockThreshold: threshold,
+          _id: result.product._id,
         });
       } catch (error) {
         // The stock transaction already succeeded.
@@ -368,6 +380,42 @@ const getMovementHistory = async (
   };
 };
 
+export const getLowStockFilter = () => ({
+  $or: [
+    {
+      $expr: {
+        $lte: ["$stockQuantity", { $ifNull: ["$lowStockThreshold", 5] }],
+      },
+    },
+    {
+      $expr: {
+        $gt: [
+          {
+            $size: {
+              $filter: {
+                input: { $ifNull: ["$variants", []] },
+                as: "v",
+                cond: {
+                  $lte: [
+                    "$$v.stockQuantity",
+                    {
+                      $ifNull: [
+                        "$$v.lowStockThreshold",
+                        { $ifNull: ["$lowStockThreshold", 5] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          0,
+        ],
+      },
+    },
+  ],
+});
+
 const getLowStockProducts = async (query: {
   page?: string;
   limit?: string;
@@ -376,16 +424,12 @@ const getLowStockProducts = async (query: {
   const limit = Math.min(requestedLimit, 100);
   const skip = (page - 1) * limit;
 
-  const filter = {
-    $expr: {
-      $lte: ["$stockQuantity", "$lowStockThreshold"],
-    },
-  };
+  const filter = getLowStockFilter();
 
   const [products, total] = await Promise.all([
     Product.find(filter)
       .select(
-        "name slug sku primaryImage stockQuantity lowStockThreshold status",
+        "name slug sku primaryImage stockQuantity lowStockThreshold status variants",
       )
       .sort({ stockQuantity: 1, name: 1 })
       .skip(skip)
@@ -409,11 +453,7 @@ const getLowStockProducts = async (query: {
 };
 
 const getInventoryStats = async () => {
-  const lowStockFilter = {
-    $expr: {
-      $lte: ["$stockQuantity", "$lowStockThreshold"],
-    },
-  };
+  const lowStockFilter = getLowStockFilter();
 
   const [
     totalProducts,
@@ -555,7 +595,7 @@ const getGlobalMovementHistory = async (
 
 const exportStockCsv = async (): Promise<string> => {
   const products = await Product.find({})
-    .select("name slug sku stockQuantity lowStockThreshold status")
+    .select("name slug sku stockQuantity lowStockThreshold status variants")
     .sort({ name: 1, _id: 1 })
     .lean();
 
@@ -564,20 +604,40 @@ const exportStockCsv = async (): Promise<string> => {
     "Product Name",
     "Slug",
     "SKU",
+    "Variant / Weight",
     "Stock Quantity",
     "Low Stock Threshold",
     "Status",
   ];
 
-  const rows = products.map((product) => [
-    product._id.toString(),
-    product.name,
-    product.slug,
-    product.sku ?? "",
-    product.stockQuantity,
-    product.lowStockThreshold,
-    product.status,
-  ]);
+  const rows: (string | number)[][] = [];
+  for (const product of products) {
+    if (product.variants && product.variants.length > 0) {
+      for (const variant of product.variants) {
+        rows.push([
+          product._id.toString(),
+          product.name,
+          product.slug,
+          variant.sku || product.sku || "",
+          variant.weight || variant.size || "Standard",
+          variant.stockQuantity,
+          variant.lowStockThreshold ?? product.lowStockThreshold ?? 5,
+          product.status,
+        ]);
+      }
+    } else {
+      rows.push([
+        product._id.toString(),
+        product.name,
+        product.slug,
+        product.sku ?? "",
+        "—",
+        product.stockQuantity,
+        product.lowStockThreshold ?? 5,
+        product.status,
+      ]);
+    }
+  }
 
   return toCsv(headers, rows);
 };

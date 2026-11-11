@@ -1,3 +1,4 @@
+import { Types } from "mongoose";
 import { NOTIFICATION_ENTITY_TYPE, NOTIFICATION_TYPE } from "../notification/notification.constant";
 import { notificationService } from "../notification/notification.service";
 
@@ -6,6 +7,7 @@ import { transporter } from "../../config/mail";
 import { emailLayout } from "../../utils/email-layout";
 
 type TLowStockNotification = {
+  _id?: string | Types.ObjectId;
   name: string;
   sku: string;
   stockQuantity: number;
@@ -70,7 +72,7 @@ export const notifyLowStockAdmins = async (
         : `Low Stock Alert: ${product.name}`,
       message: `${product.name} (SKU: ${product.sku}) has reached ${product.stockQuantity} units (threshold: ${product.lowStockThreshold}).`,
       entityType: NOTIFICATION_ENTITY_TYPE.PRODUCT,
-      entityId: product._id.toString(),
+      entityId: product._id ? product._id.toString() : undefined,
       actionUrl: '/dashboard/ecommerce/inventory',
       metadata: {
         sku: product.sku,

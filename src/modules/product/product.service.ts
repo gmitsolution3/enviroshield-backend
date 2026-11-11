@@ -87,6 +87,12 @@ const createProduct = async (payload: TProduct) => {
       (sum, v) => sum + (v.stockQuantity || 0),
       0,
     );
+    const costPrices = payload.variants
+      .map((v) => v.costPrice)
+      .filter((c): c is number => typeof c === "number" && c > 0);
+    if (costPrices.length > 0) {
+      payload.costPrice = Math.min(...costPrices);
+    }
   } else if (payload.status === PRODUCT_STATUS.PUBLISHED) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -291,6 +297,12 @@ const updateProduct = async (productId: string, payload: Partial<TProduct>) => {
       (sum, v) => sum + (v.stockQuantity || 0),
       0,
     );
+    const costPrices = payload.variants
+      .map((v) => v.costPrice)
+      .filter((c): c is number => typeof c === "number" && c > 0);
+    if (costPrices.length > 0) {
+      payload.costPrice = Math.min(...costPrices);
+    }
   }
 
   const nextStatus = payload.status ?? existingProduct.status;

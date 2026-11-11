@@ -3,7 +3,7 @@ import { BOOKING_STATUS } from "../booking/booking.constant";
 import Booking from "../booking/booking.model";
 import { CONTACT_STATUS } from "../contact/contact.constant";
 import Contact from "../contact/contact.model";
-import { inventoryService } from "../inventory/inventory.service";
+import { getLowStockFilter, inventoryService } from "../inventory/inventory.service";
 import { ORDER_STATUS, PAYMENT_STATUS } from "../order/order.constant";
 import Order from "../order/order.model";
 import { PRODUCT_STATUS } from "../product/product.constant";
@@ -529,17 +529,14 @@ const getAdminOverview = async (
 
     // 20. Low stock products (up to 5)
     Product.find(
-      {
-        $expr: {
-          $lte: ["$stockQuantity", "$lowStockThreshold"],
-        },
-      },
+      getLowStockFilter(),
       {
         name: 1,
         sku: 1,
         stockQuantity: 1,
         lowStockThreshold: 1,
         status: 1,
+        variants: 1,
       },
     )
       .sort({ stockQuantity: 1 })
@@ -1637,13 +1634,9 @@ const getAdminProducts = async (
       { $limit: 10 },
     ]),
 
-    // Low stock products using schema's stockQuantity <= lowStockThreshold
+    // Low stock products using schema's stockQuantity <= lowStockThreshold or variant low stock
     Product.find(
-      {
-        $expr: {
-          $lte: ["$stockQuantity", "$lowStockThreshold"],
-        },
-      },
+      getLowStockFilter(),
       {
         name: 1,
         sku: 1,
@@ -1651,6 +1644,7 @@ const getAdminProducts = async (
         lowStockThreshold: 1,
         price: 1,
         status: 1,
+        variants: 1,
       },
     )
       .sort({ stockQuantity: 1 })
