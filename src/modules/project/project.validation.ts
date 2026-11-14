@@ -5,7 +5,7 @@ const projectImageSchema = z.object({
   url: z.string().min(1, "Image URL is required"),
   publicId: z.string().min(1, "Cloudinary public ID is required"),
   alt: z.string().min(1, "Image alt text is required"),
-  caption: z.string().optional(),
+  caption: z.string().nullable().optional(),
 });
 
 const projectLocationSchema = z.object({

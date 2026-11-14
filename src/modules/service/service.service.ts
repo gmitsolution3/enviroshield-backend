@@ -23,10 +23,10 @@ const createService = async (payload: Omit<TService, "projects">) => {
       isFeatured: true,
     });
 
-    if (featuredCount >= 3) {
+    if (featuredCount >= 4) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 3 services can be featured",
+        "Maximum 4 services can be featured",
       );
     }
   }
@@ -193,10 +193,10 @@ const updateService = async (
       _id: { $ne: serviceId },
     });
 
-    if (featuredCount >= 3) {
+    if (featuredCount >= 4) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 3 services can be featured",
+        "Maximum 4 services can be featured",
       );
     }
   }
