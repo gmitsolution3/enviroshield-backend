@@ -20,17 +20,6 @@ const projectClientSchema = z.object({
   logo: projectImageSchema.optional(),
 });
 
-const projectSEOSchema = z.object({
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
-  keywords: z.array(z.string()).optional(),
-  ogTitle: z.string().optional(),
-  ogDescription: z.string().optional(),
-  ogImage: z.string().url().optional(),
-  ogImagePublicId: z.string().optional(),
-  noIndex: z.boolean().optional(),
-});
-
 const createProjectValidationSchema = z.object({
   body: z.object({
     title: z.string().min(1, "Project title is required"),
@@ -59,8 +48,6 @@ const createProjectValidationSchema = z.object({
       .optional(),
 
     isFeatured: z.boolean().optional(),
-
-    seo: projectSEOSchema.optional(),
   }),
 });
 
@@ -92,8 +79,6 @@ const updateProjectValidationSchema = z.object({
       .optional(),
 
     isFeatured: z.boolean().optional(),
-
-    seo: projectSEOSchema.optional(),
   }),
 });
 

@@ -16,7 +16,6 @@ export type TServiceItem = {
 };
 
 export type TServiceSection = {
-  image: TServiceImage;
   items: TServiceItem[];
 };
 

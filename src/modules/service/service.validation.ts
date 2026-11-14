@@ -14,7 +14,6 @@ const serviceItemSchema = z.object({
 });
 
 const serviceSectionSchema = z.object({
-  image: serviceImageSchema,
   items: z
     .array(serviceItemSchema)
     .min(1, "At least one item is required"),

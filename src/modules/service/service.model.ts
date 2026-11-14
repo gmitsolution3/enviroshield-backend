@@ -56,10 +56,6 @@ const serviceItemSchema = new Schema<TServiceItem>(
 
 const serviceSectionSchema = new Schema<TServiceSection>(
   {
-    image: {
-      type: serviceImageSchema,
-      required: true,
-    },
     items: {
       type: [serviceItemSchema],
       required: true,

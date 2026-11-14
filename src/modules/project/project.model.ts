@@ -6,7 +6,6 @@ import {
   TProjectClient,
   TProjectImage,
   TProjectLocation,
-  TProjectSEO,
 } from "./project.types";
 
 const projectImageSchema = new Schema<TProjectImage>(
@@ -78,46 +77,6 @@ const projectClientSchema = new Schema<TProjectClient>(
   },
 );
 
-const projectSEOSchema = new Schema<TProjectSEO>(
-  {
-    metaTitle: {
-      type: String,
-      trim: true,
-    },
-    metaDescription: {
-      type: String,
-      trim: true,
-    },
-    keywords: {
-      type: [String],
-      default: [],
-    },
-    ogTitle: {
-      type: String,
-      trim: true,
-    },
-    ogDescription: {
-      type: String,
-      trim: true,
-    },
-    ogImage: {
-      type: String,
-      trim: true,
-    },
-    ogImagePublicId: {
-      type: String,
-      trim: true,
-    },
-    noIndex: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
 const projectSchema = new Schema<TProject>(
   {
     title: {
@@ -180,11 +139,6 @@ const projectSchema = new Schema<TProject>(
     isFeatured: {
       type: Boolean,
       default: false,
-    },
-
-    seo: {
-      type: projectSEOSchema,
-      default: undefined,
     },
   },
   {

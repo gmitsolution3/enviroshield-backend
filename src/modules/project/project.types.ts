@@ -26,17 +26,6 @@ export type TProjectClient = {
   };
 };
 
-export type TProjectSEO = {
-  metaTitle?: string;
-  metaDescription?: string;
-  keywords?: string[];
-  ogTitle?: string;
-  ogDescription?: string;
-  ogImage?: string;
-  ogImagePublicId?: string;
-  noIndex?: boolean;
-};
-
 export type TProject = {
   title: string;
   slug: string;
@@ -58,6 +47,4 @@ export type TProject = {
   status: TProjectStatus;
 
   isFeatured: boolean;
-
-  seo?: TProjectSEO;
 };
