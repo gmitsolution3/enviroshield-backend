@@ -25,6 +25,19 @@ const createProject = async (payload: TProject) => {
     throw new AppError(httpStatus.NOT_FOUND, "Service not found");
   }
 
+  if (payload.isFeatured) {
+    const featuredCount = await Project.countDocuments({
+      isFeatured: true,
+    });
+
+    if (featuredCount >= 6) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Maximum 6 projects can be featured",
+      );
+    }
+  }
+
   const project = await Project.create(payload);
 
   await Service.findByIdAndUpdate(payload.serviceId, {
@@ -104,7 +117,7 @@ const getPublishedProjects = async (query: {
 
   const projects = await Project.find(filter)
     .populate("serviceId")
-    .sort({ completionDate: -1 })
+    .sort({ isFeatured: -1, completionDate: -1 })
     .skip(skip)
     .limit(limit);
 
@@ -237,6 +250,20 @@ const updateProject = async (
       throw new AppError(
         httpStatus.NOT_FOUND,
         "New service not found",
+      );
+    }
+  }
+
+  if (payload.isFeatured && !existingProject.isFeatured) {
+    const featuredCount = await Project.countDocuments({
+      isFeatured: true,
+      _id: { $ne: projectId },
+    });
+
+    if (featuredCount >= 6) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Maximum 6 projects can be featured",
       );
     }
   }
