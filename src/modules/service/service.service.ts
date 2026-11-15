@@ -23,10 +23,10 @@ const createService = async (payload: Omit<TService, "projects">) => {
       isFeatured: true,
     });
 
-    if (featuredCount >= 4) {
+    if (featuredCount >= 6) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 4 services can be featured",
+        "Maximum 6 services can be featured",
       );
     }
   }
@@ -106,7 +106,7 @@ const getPublishedServices = async (query: TPaginationOptions) => {
 
   const services = await Service.find(filter)
     .populate("projects")
-    .sort({ publishedAt: -1 })
+    .sort({ isFeatured: -1, publishedAt: -1 })
     .skip(skip)
     .limit(limit);
 
@@ -193,10 +193,10 @@ const updateService = async (
       _id: { $ne: serviceId },
     });
 
-    if (featuredCount >= 4) {
+    if (featuredCount >= 6) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 4 services can be featured",
+        "Maximum 6 services can be featured",
       );
     }
   }
