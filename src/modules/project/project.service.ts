@@ -30,10 +30,10 @@ const createProject = async (payload: TProject) => {
       isFeatured: true,
     });
 
-    if (featuredCount >= 6) {
+    if (featuredCount >= 8) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 6 projects can be featured",
+        "Maximum 8 projects can be featured",
       );
     }
   }
@@ -260,10 +260,10 @@ const updateProject = async (
       _id: { $ne: projectId },
     });
 
-    if (featuredCount >= 6) {
+    if (featuredCount >= 8) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        "Maximum 6 projects can be featured",
+        "Maximum 8 projects can be featured",
       );
     }
   }
