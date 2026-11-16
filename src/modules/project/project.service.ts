@@ -108,12 +108,24 @@ const getAllProjects = async (
 const getPublishedProjects = async (query: {
   page?: string;
   limit?: string;
+  search?: string;
+  searchTerm?: string;
 }) => {
   const { page, limit, skip } = calculatePagination(query);
 
-  const filter = {
+  const filter: Record<string, unknown> = {
     status: PROJECT_STATUS.PUBLISHED,
   };
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { title: searchRegex },
+      { client: searchRegex },
+      { location: searchRegex },
+    ];
+  }
 
   const projects = await Project.find(filter)
     .populate("serviceId")

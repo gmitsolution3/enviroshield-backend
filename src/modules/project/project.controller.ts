@@ -36,6 +36,7 @@ const getPublishedProjects = catchAsync(
     const result = await projectService.getPublishedProjects({
       page: req.query.page as string,
       limit: req.query.limit as string,
+      search: (req.query.search || req.query.searchTerm) as string,
     });
 
     sendResponse(res, {

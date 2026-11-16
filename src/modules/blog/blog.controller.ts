@@ -37,6 +37,7 @@ const getPublishedBlogs = catchAsync(
     const result = await blogService.getPublishedBlogs({
       page: req.query.page as string,
       limit: req.query.limit as string,
+      search: (req.query.search || req.query.searchTerm) as string,
     });
 
     sendResponse(res, {

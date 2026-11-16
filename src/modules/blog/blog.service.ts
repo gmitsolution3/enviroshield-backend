@@ -127,12 +127,24 @@ const getAllBlogs = async (
   };
 };
 
-const getPublishedBlogs = async (query: TPaginationOptions) => {
+const getPublishedBlogs = async (
+  query: TPaginationOptions & { search?: string; searchTerm?: string },
+) => {
   const { page, limit, skip } = calculatePagination(query);
 
-  const filter = {
+  const filter: Record<string, unknown> = {
     status: BLOG_STATUS.PUBLISHED,
   };
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [
+      { title: searchRegex },
+      { excerpt: searchRegex },
+      { tags: searchRegex },
+    ];
+  }
 
   const blogs = await Blog.find(filter)
     .sort({ publishedAt: -1 })

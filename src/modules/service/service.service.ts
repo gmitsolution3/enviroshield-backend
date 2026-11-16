@@ -97,12 +97,20 @@ const getAllServices = async (
   };
 };
 
-const getPublishedServices = async (query: TPaginationOptions) => {
+const getPublishedServices = async (
+  query: TPaginationOptions & { search?: string; searchTerm?: string },
+) => {
   const { page, limit, skip } = calculatePagination(query);
 
-  const filter = {
+  const filter: Record<string, unknown> = {
     status: SERVICE_STATUS.PUBLISHED,
   };
+
+  const search = (query.search || query.searchTerm)?.trim();
+  if (search) {
+    const searchRegex = new RegExp(search, "i");
+    filter.$or = [{ name: searchRegex }, { shortDescription: searchRegex }];
+  }
 
   const services = await Service.find(filter)
     .populate("projects")

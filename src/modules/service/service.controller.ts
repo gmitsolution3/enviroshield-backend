@@ -36,6 +36,7 @@ const getPublishedServices = catchAsync(
     const result = await serviceService.getPublishedServices({
       page: req.query.page as string,
       limit: req.query.limit as string,
+      search: (req.query.search || req.query.searchTerm) as string,
     });
 
     sendResponse(res, {
